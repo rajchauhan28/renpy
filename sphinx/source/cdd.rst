@@ -176,7 +176,7 @@ class, we'll present them with the `self` parameter.
         of the interaction. If the event method returns None, the event
         is passed on to other displayables.
 
-        To ignore the event without returning None, raise :class:`renpy.IgnoreEvent`.
+        To ignore the event without returning None, raise :exc:`renpy.IgnoreEvent`.
 
         The event method exists on other displayables, allowing the
         creator-defined displayable to pass on the event.
@@ -294,6 +294,8 @@ the implicit `self` parameter.
        `pygame.draw <http://www.pygame.org/docs/ref/draw.html>`_
        functions, with the first parameter (the surface) omitted.
 
+       In Ren'Py, the arc and ellipse functions aren't implemented.
+
        Canvas objects also have a get_surface() method that returns the
        pygame Surface underlying the canvas.
 
@@ -326,7 +328,7 @@ the implicit `self` parameter.
         If set to True:
 
         * All of the children of this displayable are rendered to textures.
-        * A mesh the size of the first child is assocated with this displayable.
+        * A mesh the size of the first child is associated with this displayable.
         * A model is created with the mesh, shaders, uniforms, and properties
           associated with this Render.
 

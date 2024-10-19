@@ -47,6 +47,7 @@ respectively.
 In-game, the usual way to play music and sound in Ren'Py is using
 the three music/sound statements.
 
+
 .. _play-statement:
 
 Play Statement
@@ -60,7 +61,6 @@ The name of a channel is expected following the keyword ``play``.
 (Usually, this is either "sound", "music", "voice", or "audio"). This is
 followed by audiofile(s), where audiofile(s) can be one file or list of files.
 When the list is given, the item of it is played in order.
-
 
 The ``fadein`` and ``fadeout`` clauses are optional. Fadeout gives the fadeout
 time for currently playing music, in seconds, while fadein gives the time
@@ -98,7 +98,6 @@ track is played at, each time it's played. ::
 
         play sound "woof.mp3" volume 0.5
 
-
 On the audio channel, multiple play statements play multiple sounds at the same
 time::
 
@@ -113,10 +112,25 @@ A variable may be used instead of a string here. If a variable exists in the
 Files placed into the audio namespace may automatically define variables that can
 be used like this.
 
+.. _synchro-start:
+
+Ren'Py supports a feature that can ensure that audio files start playing at the same time. This feature
+is enabled on looping audio channels (like music) by default, but can also be enabled by the
+`synchro_start` option to :func:`renpy.music.register_channel` or :func:`renpy.music.play`.
+
+When synchro start is enabled and multiple play statements are run at the same time, the audio in each channel
+will start synchronized. Specifically, the audio will start:
+
+* When the audio files on every channel have been loaded and audio samples are available.
+* When all all channels have been faded out.
+
+New audio will start playing when both conditions are met.
+
+
 Stop Statement
 --------------
 
-The ``stop`` statement begins with the keyword ``stop``, followed by the the name of a
+The ``stop`` statement begins with the keyword ``stop``, followed by the name of a
 channel to stop sound on. It may optionally have a ``fadeout`` clause. If the
 fadeout clause is not given, :var:`config.fadeout_audio` is used. ::
 
@@ -130,7 +144,7 @@ Queue Statement
 The ``queue`` statement is used to queue up audio files. They will be played when
 the channel finishes playing the currently playing file.
 
-The queue statement begins with keyword ``queue``, followed by the the name of a
+The queue statement begins with keyword ``queue``, followed by the name of a
 channel to play sound on. It optionally takes the ``fadein``, ``loop`` and ``noloop`` clauses. ::
 
         queue sound "woof.mp3"
@@ -200,6 +214,7 @@ will play 10.5 seconds of waves.opus, starting at the 5 second mark. The stateme
 will play song.opus all the way through once, then loop back to the 6.333
 second mark before playing it again all the way through to the end.
 
+
 .. _sync-start:
 
 Sync Start Position
@@ -208,16 +223,17 @@ Sync Start Position
 The position in the file at which the clip begins playing can also be synced to
 another channel with a currently-playing track using a filename like
 "<sync channelname>track.opus", where channelname is the name of the channel,
-which could be music, sound, or any other registered channels.
+which could be "music", "sound", or any other registered channels.
 
 This can be used to sync multi-layered looping tracks together. For example::
 
         play music_2 [ "<sync music_1>layer_2.opus", "layer_2.opus" ]
 
-Will play layer_2.opus with the start time synced to the current track in
+Will play :file:`layer_2.opus` with the start time synced to the current track in
 channel music_1 in the first iteration, before playing the whole track in
-subsequent iterations. (By default, the layer_2.opus start time will remain
+subsequent iterations. (By default, the :file:`layer_2.opus` start time will remain
 modified even in subsequent iterations in the loop.)
+
 
 .. _volume:
 
@@ -239,9 +255,9 @@ For example, if the main volume is 80% (or 0.8), the mixer's volume is 100%,
 the channel volume is 50% (0.5) and the track's relative volume is 25% (0.25),
 the resulting volume is .8\*1.\*.5\*.25 = .1, so 10%.
 
-The mixers' volumes can be set using :func:`preferences.set_volume`, using the
+The mixers' volumes can be set using :func:`preferences.set_mixer`, using the
 :func:`SetMixer` action, or using the :func:`Preference` action with the
-"mixer <mixer> volume" key.
+``"mixer <mixer> volume"`` key.
 The "audio" and "sound" channels relate to the "sfx" mixer, the "music" channel
 to the "music" mixer and the "voice" channel to the "voice" mixer.
 Every channel additionally relates to the "main" mixer, as shown above.
@@ -253,14 +269,14 @@ channel relates, creating it in the process if it doesn't already exist.
 
 A track's relative volume is set with the ``volume`` clause of the :ref:`play-statement`.
 
-
 In addition to these volume values, there is the mute flag of the mixer which
 the channel relates to. If enabled, it will reduce the played volume to 0.
 They can be set using the :func:`SetMute` or :func:`ToggleMute` actions, or
 using the :func:`Preference` action with the "mixer <mixer> mute" key, or using
 the :func:`preferences.set_mute` function.
 
-.. _silence:
+
+7.. _silence:
 
 Playing Silence
 ---------------
@@ -298,22 +314,23 @@ extension stripped, the rest of the filename forced to lower case, and are
 placed into the audio namespace.
 
 Note that just because a file is placed into the audio namespace, that doesn't
-mean it can be used. So while you could play a file named "opening_song.ogg"
+mean it can be used. So while you could play a file named :file:`opening_song.ogg`
 by writing::
 
     play music opening_song
 
-Some filenames can't be accessed this way, as their names are not expressable
-as Python variables. For example, "my song.mp3", "8track.opus", and
-"this-is-a-song.ogg" won't work.
+some filenames can't be accessed this way, as their names are not expressable
+as Python variables. For example, :file:`my song.mp3`, :file:`8track.opus`, and
+:file:`this-is-a-song.ogg` won't work.
 
 When searching for an audio file, if the file is not found, Ren'Py will look
 in the audio directory. For example::
 
     play music "opening.ogg"
 
-Will first look for ``game/opening.ogg``. If not found, Ren'Py will look for
-``game/audio/opening.ogg``.
+will first look for :file:`game/opening.ogg`. If not found, Ren'Py will look for
+:file:`game/audio/opening.ogg`.
+
 
 Actions
 -------

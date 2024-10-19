@@ -1,4 +1,4 @@
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -36,6 +36,11 @@ import renpy
 import hashlib
 import re
 import time
+import sys
+
+
+from renpy.parameter import Parameter, Signature, ParameterInfo, ArgumentInfo, \
+    apply_arguments, EMPTY_PARAMETERS, EMPTY_ARGUMENTS
 
 
 def statement_name(name):
@@ -57,332 +62,8 @@ def next_node(n):
     renpy.game.context().next_node = n
 
 
-class ParameterInfo(object):
-    """
-    This class is used to store information about parameters to a
-    label.
-    """
-
-    positional_only = [ ]
-    keyword_only = [ ]
-
-    def __init__(self, parameters, positional, extrapos, extrakw, last_posonly=None, first_kwonly=None):
-
-        # A list of (parameter name, default value) pairs.
-        # The default value is either None (if there is none)
-        # or a string which when evaluated results in the actual value
-        self.parameters = parameters
-
-        # A list, giving the names of the positional parameters
-        # to this function, in order.
-        self.positional = positional
-
-        # A variable that takes the extra positional arguments, if
-        # any. None if no such variable exists.
-        # If there is *args, this is "args".
-        self.extrapos = extrapos
-
-        # A variable that takes the extra keyword arguments, if
-        # any. None if no such variable exists.
-        # If there is **properties, this is "properties".
-        self.extrakw = extrakw
-
-        # The parameters which are positional-only, see
-        # https://www.python.org/dev/peps/pep-0570/
-        # Empty if / not present.
-        if last_posonly is None:
-            self.positional_only = [ ]
-        else:
-            rv = [ ]
-            for param in parameters:
-                rv.append(param)
-                if param[0] == last_posonly:
-                    break
-
-            self.positional_only = rv
-
-        # The parameters which are keyword-only, see
-        # https://www.python.org/dev/peps/pep-3102/
-        # Empty if * nor *args are present, or if there are no parameters after them.
-        if first_kwonly is None:
-            self.keyword_only = [ ]
-        else:
-            rv = [ ]
-            for param in reversed(parameters):
-                rv.append(param)
-                if param[0] == first_kwonly:
-                    break
-
-            rv.reverse()
-            self.keyword_only = rv
-
-    def apply(self, args, kwargs, ignore_errors=False):
-        """
-        Applies `args` and `kwargs` to these parameters. Returns
-        a dictionary that can be used to update an enclosing
-        scope.
-
-        `ignore_errors`
-            If true, errors will be ignored, and this function will do the
-            best job it can.
-        """
-
-        rv = { }
-
-        if args is None:
-            args = [ ]
-
-        if kwargs is None:
-            kwargs = renpy.python.RevertableDict()
-        else:
-            # Prevent original kwargs changes
-            kwargs = kwargs.copy()
-
-        parameters = self.parameters
-        # Handle empty parameters in a fast way
-        if not parameters:
-
-            if self.extrakw:
-                rv[self.extrakw] = kwargs
-
-            elif kwargs and (not ignore_errors):
-                if not kwargs.pop("_ignore_extra_kwargs", False):
-                    raise TypeError(
-                        "Unexpected keyword arguments: %s" %
-                        ", ".join("'%s'" % i for i in kwargs))
-
-            if self.extrapos:
-                rv[self.extrapos] = tuple(args)
-
-            elif args and (not ignore_errors):
-                raise TypeError("Too many arguments in call (expected 0, got %d)." % len(args))
-
-            return rv
-
-        # Fill positional-only slots and check whether its passed as keyword
-        slots = iter(self.positional_only)
-        argsi = iter(args)
-        missed_pos = [ ]
-        posonly_keyword = [ ]
-        for value in argsi:
-            try:
-                name, _ = next(slots)
-            except StopIteration:
-                argsi = iter([ value ] + list(argsi))
-                break
-
-            if name in kwargs:
-                posonly_keyword.append(name)
-
-            rv[name] = value
-
-        # Some parameters left
-        else:
-            for name, default in slots:
-                if name in kwargs:
-                    posonly_keyword.append(name)
-
-                if default is not None:
-                    rv[name] = renpy.python.py_eval(default)
-                else:
-                    missed_pos.append(name)
-
-            argsi = iter([])
-
-        # Report positional-only as keyword if we have not **kwargs
-        if posonly_keyword and self.extrakw is None:
-            if not ignore_errors:
-                raise TypeError(
-                    "Some positional-only arguments passed as keyword arguments: %s" %
-                    ", ".join("'%s'" % i for i in posonly_keyword))
-            else:
-                for name in posonly_keyword:
-                    kwargs.pop(name)
-
-        # Fill positional_or_keyword slots with left args
-        poskw_slots = parameters[len(self.positional_only):-len(self.keyword_only) or None]
-        slots = iter(poskw_slots)
-        extraargs = [ ]
-        duplicated_names = [ ]
-        for value in argsi:
-            try:
-                name, _ = next(slots)
-            except StopIteration:
-                extraargs = [ value ] + list(argsi)
-                break
-
-            rv[name] = value
-
-            if name in kwargs:
-                kwargs.pop(name)
-                duplicated_names.append(name)
-
-        # Some parameters left
-        else:
-            for name, default in slots:
-                if name in kwargs:
-                    rv[name] = kwargs.pop(name)
-                elif default is not None:
-                    rv[name] = renpy.python.py_eval(default)
-                else:
-                    missed_pos.append(name)
-
-        # Report missing positional parameters
-        if missed_pos and (not ignore_errors):
-            raise TypeError(
-                "Missing required positional arguments: %s" %
-                ", ".join("'%s'" % i for i in missed_pos))
-
-        if self.extrapos:
-            rv[self.extrapos] = tuple(extraargs)
-
-        # Report extra positional arguments
-        elif extraargs and (not ignore_errors):
-            positional = self.positional_only + poskw_slots
-            required = len([i for i in positional if i[1] is None])
-            total = len(positional)
-
-            if total == required:
-                expected = str(total)
-            else:
-                expected = "from %d to %d" % (required, total)
-
-            raise TypeError(
-                "Too many arguments in call (expected %s, got %d)." %
-                (expected, len(args)))
-
-        # Report duplicated positional parameters
-        if duplicated_names and (not ignore_errors):
-            raise TypeError(
-                "Got multiple values for arguments: %s" %
-                ", ".join("'%s'" % i for i in duplicated_names))
-
-        # Fill keyword-only parameters
-        missed_kw = [ ]
-        for name, default in self.keyword_only:
-            if name in kwargs:
-                rv[name] = kwargs.pop(name)
-            elif default is not None:
-                rv[name] = renpy.python.py_eval(default)
-            else:
-                missed_kw.append(name)
-
-        # Report missing keyword-only parameters
-        if missed_kw and (not ignore_errors):
-            raise TypeError(
-                "Missing required keyword-only arguments: %s" %
-                ", ".join("'%s'" % i for i in missed_kw))
-
-        if self.extrakw:
-            rv[self.extrakw] = kwargs
-
-        elif kwargs and (not ignore_errors):
-            if not kwargs.pop("_ignore_extra_kwargs", False):
-                raise TypeError(
-                    "Unexpected keyword arguments: %s" %
-                    ", ".join("'%s'" % i for i in kwargs))
-
-        return rv
-
-
-def apply_arguments(parameters, args, kwargs, ignore_errors=False):
-
-    if parameters is None:
-        if (args or kwargs) and not ignore_errors:
-            raise Exception("Arguments supplied, but parameter list not present")
-        else:
-            return { }
-
-    return parameters.apply(args, kwargs, ignore_errors)
-
-
-class ArgumentInfo(renpy.object.Object):
-
-    __version__ = 1
-    starred_indexes = set()
-    doublestarred_indexes = set()
-
-    def after_upgrade(self, version):
-        if version < 1:
-            arguments = self.arguments
-            extrapos = self.extrapos # type: ignore
-            extrakw = self.extrakw # type: ignore
-            length = len(arguments) + bool(extrapos) + bool(extrakw)
-            if extrapos:
-                self.starred_indexes = { length - 1 }
-                arguments.append((None, extrapos))
-
-            if extrakw:
-                self.doublestarred_indexes = { length - 1 }
-                arguments.append((None, extrakw))
-
-            if extrapos and extrakw:
-                self.starred_indexes = { length - 2 }
-
-    def __init__(self, arguments, starred_indexes=None, doublestarred_indexes=None):
-
-        # A list of (keyword, expression) pairs. If an argument doesn't
-        # have a keyword, it's thought of as positional.
-        self.arguments = arguments
-
-        # Indexes of arguments to be considered as * unpacking
-        self.starred_indexes = starred_indexes or set()
-
-        # Indexes of arguments to be considered as ** unpacking.
-        self.doublestarred_indexes = doublestarred_indexes or set()
-
-    def evaluate(self, scope=None):
-        """
-        Evaluates the arguments, returning a tuple of arguments and a
-        dictionary of keyword arguments.
-        """
-
-        args = [ ]
-        kwargs = renpy.revertable.RevertableDict()
-
-        for i, (k, v) in enumerate(self.arguments):
-            value = renpy.python.py_eval(v, locals=scope)
-
-            if i in self.starred_indexes:
-                args.extend(value)
-
-            elif i in self.doublestarred_indexes:
-                kwargs.update(value)
-
-            elif k is not None:
-                kwargs[k] = value
-            else:
-                args.append(value)
-
-        return tuple(args), kwargs
-
-    def get_code(self):
-
-        l = [ ]
-
-        for i, (keyword, expression) in enumerate(self.arguments):
-
-            if i in self.starred_indexes:
-                l.append("*" + expression)
-
-            elif i in self.doublestarred_indexes:
-                l.append("**" + expression)
-
-            elif keyword is not None:
-                l.append("{}={}".format(keyword, expression))
-            else:
-                l.append(expression)
-
-        return "(" + ", ".join(l) + ")"
-
-
-EMPTY_PARAMETERS = ParameterInfo([ ], [ ], None, None, None, None)
-EMPTY_ARGUMENTS = ArgumentInfo([ ], None, None)
-
-
 def __newobj__(cls, *args):
     return cls.__new__(cls, *args)
-
 
 
 class PyExpr(str):
@@ -476,10 +157,7 @@ class PyCode(object):
         if isinstance(source, PyExpr):
             loc = (source.filename, source.linenumber, source)
 
-        if PY2:
-            self.py = 2
-        else:
-            self.py = 3
+        self.py = 3
 
         # The source code.
         self.source = source
@@ -796,6 +474,7 @@ class Say(Node):
         'temporary_attributes',
         'rollback',
         'identifier',
+        'explicit_identifier',
         ]
 
     def diff_info(self):
@@ -808,6 +487,7 @@ class Say(Node):
         self.arguments = None
         self.temporary_attributes = None
         self.rollback = "normal"
+        self.explicit_identifier = False
         return self
 
     def __init__(self, loc, who, what, with_, interact=True, attributes=None, arguments=None, temporary_attributes=None, identifier=None):
@@ -815,13 +495,14 @@ class Say(Node):
         super(Say, self).__init__(loc)
 
         if who is not None:
-            self.who = who.strip()
-
             # True if who is a simple enough expression we can just look it up.
-            if re.match(renpy.lexer.word_regexp + "$", self.who):
+            if re.match(renpy.lexer.word_regexp + r"\s*$", who):
                 self.who_fast = True
+                self.who = sys.intern(who.strip())
             else:
                 self.who_fast = False
+                self.who = who
+
         else:
             self.who = None
             self.who_fast = False
@@ -841,6 +522,7 @@ class Say(Node):
         # If given, write in the identifier.
         if identifier is not None:
             self.identifier = identifier
+            self.explicit_identifier = True
 
     def get_code(self, dialogue_filter=None):
         rv = [ ]
@@ -864,7 +546,7 @@ class Say(Node):
         if not self.interact:
             rv.append("nointeract")
 
-        if getattr(self, "identifier", None):
+        if getattr(self, "identifier", None) and self.explicit_identifier:
             rv.append("id")
             rv.append(getattr(self, "identifier", None))
 
@@ -1023,8 +705,6 @@ class Init(Node):
 
 
 class Label(Node):
-
-    rollback = "force"
 
     translation_relevant = True
     __slots__ = [
@@ -1347,7 +1027,7 @@ def predict_imspec(imspec, scene=False, atl=None):
 
     if atl is not None:
         try:
-            at_list.append(renpy.display.motion.ATLTransform(atl))
+            at_list.append(renpy.display.transform.ATLTransform(atl))
         except Exception:
             pass
 
@@ -1356,7 +1036,7 @@ def predict_imspec(imspec, scene=False, atl=None):
     if scene:
         renpy.game.context().images.predict_scene(layer)
 
-    renpy.exports.predict_show(name, layer, what=img, tag=tag)
+    renpy.exports.predict_show(name, layer, what=img, tag=tag, at_list=at_list)
 
 
 def show_imspec(imspec, atl=None):
@@ -1883,15 +1563,20 @@ class Menu(Node):
 
         next_node(self.next)
 
-        if self.has_caption or renpy.config.choice_empty_window:
-            statement_name("menu-with-caption")
-        else:
-            statement_name("menu")
-
         if self.arguments is not None:
             args, kwargs = self.arguments.evaluate()
         else:
             args = kwargs = None
+
+        name = "menu"
+
+        if kwargs is not None and kwargs.get('nvl') is True:
+            name = "menu-nvl"
+
+        if self.has_caption or renpy.config.choice_empty_window:
+            name += "-with-caption"
+
+        statement_name(name)
 
         choices = [ ]
         narration = [ ]
@@ -2183,6 +1868,7 @@ class UserStatement(Node):
         'rollback',
         'subparses',
         'init_priority',
+        'atl',
         ]
 
     def __new__(cls, *args, **kwargs):
@@ -2194,6 +1880,7 @@ class UserStatement(Node):
         self.rollback = "normal"
         self.subparses = [ ]
         self.init_priority = 0
+        self.atl = None
         return self
 
     def __init__(self, loc, line, block, parsed):
@@ -2278,7 +1965,10 @@ class UserStatement(Node):
         next_node(self.get_next())
         statement_name(self.get_name())
 
-        self.call("execute")
+        if self.atl is not None:
+            self.call("execute", atl=renpy.display.transform.ATLTransform(self.atl))
+        else:
+            self.call("execute")
 
     def execute_default(self, start):
         self.call("execute_default")
@@ -2289,6 +1979,9 @@ class UserStatement(Node):
         if predictions is not None:
             for i in predictions:
                 renpy.easy.predict(i)
+
+        if self.atl is not None:
+            renpy.display.predict.displayable(renpy.display.transform.ATLTransform(self.atl))
 
         if self.parsed and renpy.statements.get("predict_all", self.parsed):
             return [ i.block[0] for i in self.subparses ] + [ self.next ]
@@ -2379,6 +2072,11 @@ class UserStatement(Node):
 
         return rv
 
+    def analyze(self):
+        if self.atl is not None:
+            self.atl.analyze(EMPTY_PARAMETERS)
+
+
 class PostUserStatement(Node):
 
     __slots__ = [
@@ -2420,6 +2118,7 @@ def create_store(name):
 
 class StoreNamespace(object):
     pure = True
+    repeat_at_default_time = False
 
     def __init__(self, store):
         self.store = store
@@ -2458,6 +2157,9 @@ EARLY_CONFIG = {
     "save_token_keys",
     "check_conflicting_properties",
     "check_translate_none",
+    "defer_tl_scripts",
+    "munge_in_strings",
+    "interface_layer",
 }
 
 define_statements = [ ]
@@ -2618,9 +2320,12 @@ class Default(Node):
         ns, special = get_namespace(self.store)
 
         if special:
-
             value = renpy.python.py_eval_bytecode(self.code.bytecode)
             ns.set_default(self.varname, value)
+
+            if getattr(ns, "repeat_at_default_time", False):
+                default_statements.append(self)
+
             return
 
         default_statements.append(self)
@@ -2631,6 +2336,16 @@ class Default(Node):
             renpy.dump.definitions.append((self.store[6:] + "." + self.varname, self.filename, self.linenumber))
 
     def execute_default(self, start):
+
+        # Handle special namespaces.
+        ns, special = get_namespace(self.store)
+
+        if special:
+            value = renpy.python.py_eval_bytecode(self.code.bytecode)
+            ns.set_default(self.varname, value)
+            return
+
+        # Handle normal namespaces.
         d = renpy.python.store_dicts[self.store]
 
         defaults_set = d.get("_defaults_set", None)
@@ -2687,6 +2402,7 @@ class Screen(Node):
 
         self.screen.define((self.filename, self.linenumber))
         renpy.dump.screens.append((self.screen.name, self.filename, self.linenumber))
+
 
 ################################################################################
 # Translations
@@ -2753,8 +2469,6 @@ class Translate(Node):
 
     def execute(self):
 
-        statement_name("translate")
-
         if self.language is not None:
             next_node(self.next)
             raise Exception("Translation nodes cannot be run directly.")
@@ -2788,6 +2502,97 @@ class Translate(Node):
         return callback(self.block)
 
 
+class TranslateSay(Say):
+    """
+    A node that combines a translate and a say statement.
+    """
+
+    translatable = True
+    translation_relevant = True
+
+    __slots__ = [
+        "identifier",
+        "alternate",
+        "language",
+        "block",
+        "after",
+        ]
+
+    def __init__(self, loc, who, what, with_, interact=True, attributes=None, arguments=None, temporary_attributes=None, identifier=None, language=None, alternate=None):
+        super(TranslateSay, self).__init__(loc, who, what, with_, interact, attributes, arguments, temporary_attributes)
+
+        self.identifier = identifier
+        self.alternate = alternate
+        self.language = language
+
+    def diff_info(self):
+        if self.language is None:
+            return Say.diff_info(self)
+        else:
+            return (TranslateSay, self.identifier, self.language)
+
+    def chain(self, next):
+        Say.chain(self, next)
+        self.after = next
+
+    def replace_next(self, old, new):
+        Say.replace_next(self, old, new)
+
+        if self.after is old:
+            self.after = new
+
+    def lookup(self):
+        return renpy.game.script.translator.lookup_translate(self.identifier, getattr(self, "alternate", None))
+
+    def execute(self):
+
+        next_node(self.next)
+
+        renpy.game.context().translate_identifier = self.identifier
+        renpy.game.context().alternate_translate_identifier = getattr(self, "alternate", None)
+
+        if self.language is None:
+
+            if self.identifier not in renpy.game.persistent._seen_translates: # type: ignore
+                renpy.game.persistent._seen_translates.add(self.identifier) # type: ignore
+                renpy.game.seen_translates_count += 1
+                renpy.game.new_translates_count += 1
+
+            # Potentially, jump to a translation.
+            node = self.lookup()
+
+            if (node is not None) and (node is not self):
+                next_node(node)
+                return
+
+        # Otherwise, say the text.
+
+        Say.execute(self)
+
+        # Perform the equivalent of an endtranslate block.
+        renpy.game.context().translate_identifier = None
+        renpy.game.context().alternate_translate_identifier = None
+
+    def predict(self):
+        node = self.lookup()
+
+        if node is None or node is self:
+            return Say.predict(self)
+
+        return [ node ]
+
+    def scry(self):
+        node = self.lookup()
+
+        if node is None or node is self:
+            return Say.scry(self)
+
+        rv = Scry()
+        rv._next = self.next
+
+        return rv
+
+
 class EndTranslate(Node):
     """
     A node added implicitly after each translate block. It's responsible for
@@ -2801,7 +2606,6 @@ class EndTranslate(Node):
 
     def execute(self):
         next_node(self.next)
-        statement_name("end translate")
 
         renpy.game.context().translate_identifier = None
         renpy.game.context().alternate_translate_identifier = None
@@ -2834,7 +2638,6 @@ class TranslateString(Node):
 
     def execute(self):
         next_node(self.next)
-        statement_name("translate string")
 
         newloc = getattr(self, "newloc", (self.filename, self.linenumber + 1))
         renpy.translation.add_string_translation(self.language, self.old, self.new, newloc)
@@ -2872,7 +2675,6 @@ class TranslatePython(Node):
 
     def execute(self):
         next_node(self.next)
-        statement_name("translate_python")
 
     # def early_execute(self):
     #    renpy.python.create_store(self.store)
@@ -2912,7 +2714,6 @@ class TranslateBlock(Node):
 
     def execute(self):
         next_node(self.next)
-        statement_name("translate_block")
 
     def restructure(self, callback):
         callback(self.block)
@@ -3053,7 +2854,7 @@ class RPY(Node):
         next_node(self.next)
         statement_name("rpy")
 
-        # rpy python 3 is run in Script.finish_load.
+        # rpy python is run in Script.finish_load.
 
     def get_code(self):
         return "rpy " + " ".join(self.rest)

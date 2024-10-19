@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -86,6 +86,7 @@ include("libavcodec/avcodec.h", directory="ffmpeg", optional=True) or include("l
 include("libswscale/swscale.h", directory="ffmpeg", optional=True) or include("libswscale/swscale.h") # type: ignore
 include("GL/glew.h")
 include("pygame_sdl2/pygame_sdl2.h", directory="python{}.{}".format(sys.version_info.major, sys.version_info.minor))
+include("hb.h", directory="harfbuzz")
 
 library("SDL2")
 library("png")
@@ -141,7 +142,10 @@ cython(
     "renpy.audio.renpysound",
     [ "renpysound_core.c", "ffmedia.c" ],
     libs=sdl + sound,
-    define_macros=macros)
+    define_macros=macros,
+    compile_args=[ "-Wno-deprecated-declarations" ] if ("RENPY_FFMPEG_NO_DEPRECATED_DECLARATIONS" in os.environ) else [ ])
+
+cython("renpy.audio.filter")
 
 # renpy
 cython("renpy.lexersupport")
@@ -149,10 +153,6 @@ cython("renpy.pydict")
 cython("renpy.style")
 
 cython("renpy.encryption")
-
-# renpy.compat
-if PY2:
-    cython("renpy.compat.dictviews")
 
 # renpy.styledata
 cython("renpy.styledata.styleclass")
@@ -169,12 +169,6 @@ cython("renpy.display.quaternion", libs=[ 'm' ])
 
 cython("renpy.uguu.gl", libs=sdl)
 cython("renpy.uguu.uguu", libs=sdl)
-
-cython("renpy.gl.gldraw", libs=sdl)
-cython("renpy.gl.gltexture", libs=sdl)
-cython("renpy.gl.glenviron_shader", libs=sdl)
-cython("renpy.gl.glrtt_copy", libs=sdl)
-cython("renpy.gl.glrtt_fbo", libs=sdl)
 
 cython("renpy.gl2.gl2mesh")
 cython("renpy.gl2.gl2mesh2")
@@ -196,6 +190,11 @@ cython(
     "renpy.text.ftfont",
     [ "ftsupport.c", "ttgsubtable.c" ],
     libs=sdl + [ 'freetype', 'z', 'm' ])
+
+cython(
+    "renpy.text.hbfont",
+    [ "ftsupport.c" ],
+    libs=sdl + [ 'harfbuzz', 'freetype', 'z', 'm' ])
 
 generate_all_cython()
 find_unnecessary_gen()

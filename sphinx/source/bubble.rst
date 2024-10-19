@@ -31,7 +31,7 @@ associated with the speech bubble. For the default speech bubble, the
 different properties control the position of the speech bubble tail.
 
 Once you've changed the area or properties for a character (or group of
-characters with the same image tage), those properties remain set until
+characters with the same image tags), those properties remain set until
 changed again, or until the next scene statement.
 
 When the area or properties are being set on the current line of dialogue,
@@ -71,6 +71,8 @@ about them. These identifiers can change if:
 If you edit a scene, it's suggested that you replay through it to make sure
 the changes did not affect speech bubble placement.
 
+It's possible to apply transforms to the speech bubble by editing the :ref:`bubble-screen`.
+
 
 Configuration Variables
 -----------------------
@@ -85,16 +87,14 @@ The ``bubble`` namespace contains the following variables:
     The database file, stored in the game directory, that contains the
     speech bubble information.
 
+.. var:: bubble.clear_retain_statements = [ "call screen", "menu",  "say", "say-centered", "say-nvl", "scene", ]
+
+    This is a list of statements that will automatically cause retained bubbles to be cleared.
 
 .. var:: bubble.cols = 24
 
     The granularity of the grid that's used to position and size speech bubbles,
     in the horizontal direction.
-
-.. var:: bubble.rows = 24
-
-    The granularity of the grid that's used to position and size speech bubbles,
-    in the vertical direction.
 
 .. var:: bubble.default_area = (15, 1, 8, 5)
 
@@ -102,11 +102,34 @@ The ``bubble`` namespace contains the following variables:
     area is specified. This is a tuple of the form (x, y, w, h),
     where each value is a number of grid cells.
 
+.. var:: bubble.expand_area = { ... }
+
+    This is a map from the name of a set of properties to a (left, top, right, bottom)
+    tuple. If found in this set, the area of the speech bubble is expanded by the
+    given number of pixels.
+
+    This makes the speech bubble bigger than the area the creator dragged out.
+    The intent is that this can be used to drag out the body of the speech
+    bubble without concern for the tail, and also for the text itself to stay
+    put when the set of properties is changed and the tail moves.
+
+    By default, this is::
+
+        define bubble.expand_area = {
+            "bottom_left" : (0, 0, 0, 22),
+            "bottom_right" : (0, 0, 0, 22),
+            "top_left" : (0, 22, 0, 0),
+            "top_right" : (0, 22, 0, 0),
+        }
+
+.. var:: bubble.layer = "screens"
+
+    The layer that non-retained bubbles are placed on.
 
 .. var:: bubble.properties = { ... }
 
     These are properties, apart from the area, that can be used to customize
-    the speech bubble. This is a map from the name of a set of proprerties
+    the speech bubble. This is a map from the name of a set of properties
     to a dictionary of properties and values. These properties supersede those
     given to the character, and are then supplied to the ``bubble`` screen.
 
@@ -160,29 +183,21 @@ The ``bubble`` namespace contains the following variables:
 
     If not None, this should be a function that takes an image tag, and returns
     a list or tuple of property names that should be used for that image tag, in
-    the order those names should be cycled through. This takes precendence over
+    the order those names should be cycled through. This takes precedence over
     bubble.properties_order, and can be used to customize the list of bubble
     properties by character.
 
-.. var:: bubble.expand_area = { ... }
+.. var:: bubble.retain_layer = "screens"
 
-    This is a map from the name of a set of properties to a (left, top, right, bottom)
-    tuple. If found in this set, the area of the speech bubble is expanded by the
-    given number of pixels.
+    The layer that retained bubbles are placed on.
 
-    This makes the speech bubble bigger than the area the creator dragged out.
-    The intent is that this can be used to drag out the body of the speech
-    bubble without concern for the tail, and also for the text itself to stay
-    put when the set of properties is changed and the tail moves.
+.. var:: bubble.rows = 24
 
-    By default, this is::
+    The granularity of the grid that's used to position and size speech bubbles,
+    in the vertical direction.
 
-        define bubble.expand_area = {
-            "bottom_left" : (0, 0, 0, 22),
-            "bottom_right" : (0, 0, 0, 22),
-            "top_left" : (0, 22, 0, 0),
-            "top_right" : (0, 22, 0, 0),
-        }
+
+.. _bubble-screen:
 
 Bubble Screen
 -------------
@@ -212,6 +227,36 @@ It's separate from the say screen as it uses its own set of styles, including
 ``bubble_window``, ``bubble_what``, ``bubble_namebox``, and ``bubble_who``.
 These styles can be customized directly to avoid having to set a property
 in all of the sets of properties in :var:`bubble.properties`.
+
+If you'd like to apply effects to the speech bubble, you can do so by
+adding a transform to the bubble screen that accepts the show and hide
+transform events, like::
+
+    screen bubble(who, what):
+        style_prefix "bubble"
+
+        window:
+            id "window"
+
+            at transform:
+                on show:
+                    alpha 0.0
+                    linear .5 alpha 1.0
+
+                on hide:
+                    linear .5 alpha 0.0
+
+            if who is not None:
+
+                window:
+                    id "namebox"
+                    style "bubble_namebox"
+
+                    text who:
+                        id "who"
+
+            text what:
+                id "what"
 
 
 Adding Bubble Support to a Game

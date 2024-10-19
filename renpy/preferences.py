@@ -1,4 +1,4 @@
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -32,32 +32,54 @@ pad_bindings = {
     "pad_lefttrigger_pos" : [ "rollback", ],
     "pad_back_press" : [ "rollback", ],
 
+    "repeat_pad_leftshoulder_press" : [ "rollback", ],
+    "repeat_pad_lefttrigger_pos" : [ "rollback", ],
+    "repeat_pad_back_press" : [ "rollback", ],
+
     "pad_guide_press" : [ "game_menu", ],
     "pad_start_press" : [ "game_menu", ],
 
     "pad_y_press" : [ "hide_windows", ],
+    "pad_x_press" : [ "button_alternate" ],
 
     "pad_rightshoulder_press" : [ "rollforward", ],
+    "repeat_pad_rightshoulder_press" : [ "rollforward", ],
 
-    "pad_righttrigger_press" : [ "dismiss", "button_select" ],
-    "pad_a_press" : [ "dismiss", "button_select" ],
-    "pad_b_press" : [ "button_alternate" ],
+    "pad_righttrigger_pos" : [ "dismiss", "button_select", "bar_activate", "bar_deactivate" ],
+    "pad_a_press" : [ "dismiss", "button_select", "bar_activate", "bar_deactivate"],
+    "pad_b_press" : [ "game_menu" ],
 
-    "pad_dleft_press" : [ "focus_left", "bar_left" ],
-    "pad_leftx_neg" : [ "focus_left", "bar_left" ],
-    "pad_rightx_neg" : [ "focus_left", "bar_left" ],
+    "pad_dpleft_press" : [ "focus_left", "bar_left", "viewport_leftarrow" ],
+    "pad_leftx_neg" : [ "focus_left", "bar_left", "viewport_leftarrow" ],
+    "pad_rightx_neg" : [ "focus_left", "bar_left", "viewport_leftarrow" ],
 
-    "pad_dpright_press" : [ "focus_right", "bar_right" ],
-    "pad_leftx_pos" : [ "focus_right", "bar_right" ],
-    "pad_rightx_pos" : [ "focus_right", "bar_right" ],
+    "pad_dpright_press" : [ "focus_right", "bar_right", "viewport_rightarrow" ],
+    "pad_leftx_pos" : [ "focus_right", "bar_right", "viewport_rightarrow" ],
+    "pad_rightx_pos" : [ "focus_right", "bar_right", "viewport_rightarrow" ],
 
-    "pad_dpup_press" : [ "focus_up", "bar_up" ],
-    "pad_lefty_neg" : [ "focus_up", "bar_up" ],
-    "pad_righty_neg" : [ "focus_up", "bar_up" ],
+    "pad_dpup_press" : [ "focus_up", "bar_up", "viewport_uparrow" ],
+    "pad_lefty_neg" : [ "focus_up", "bar_up", "viewport_uparrow" ],
+    "pad_righty_neg" : [ "focus_up", "bar_up", "viewport_uparrow" ],
 
-    "pad_dpdown_press" : [ "focus_down", "bar_down" ],
-    "pad_lefty_pos" : [ "focus_down", "bar_down" ],
-    "pad_righty_pos" : [ "focus_down", "bar_down" ],
+    "pad_dpdown_press" : [ "focus_down", "bar_down", "viewport_downarrow" ],
+    "pad_lefty_pos" : [ "focus_down", "bar_down", "viewport_downarrow" ],
+    "pad_righty_pos" : [ "focus_down", "bar_down", "viewport_downarrow" ],
+
+    "repeat_pad_dpleft_press" : [ "focus_left", "bar_left", "viewport_leftarrow" ],
+    "repeat_pad_leftx_neg" : [ "focus_left", "bar_left", "viewport_leftarrow" ],
+    "repeat_pad_rightx_neg" : [ "focus_left", "bar_left", "viewport_leftarrow" ],
+
+    "repeat_pad_dpright_press" : [ "focus_right", "bar_right", "viewport_rightarrow" ],
+    "repeat_pad_leftx_pos" : [ "focus_right", "bar_right", "viewport_rightarrow" ],
+    "repeat_pad_rightx_pos" : [ "focus_right", "bar_right", "viewport_rightarrow" ],
+
+    "repeat_pad_dpup_press" : [ "focus_up", "bar_up", "viewport_uparrow" ],
+    "repeat_pad_lefty_neg" : [ "focus_up", "bar_up", "viewport_uparrow" ],
+    "repeat_pad_righty_neg" : [ "focus_up", "bar_up", "viewport_uparrow" ],
+
+    "repeat_pad_dpdown_press" : [ "focus_down", "bar_down", "viewport_downarrow" ],
+    "repeat_pad_lefty_pos" : [ "focus_down", "bar_down", "viewport_downarrow" ],
+    "repeat_pad_righty_pos" : [ "focus_down", "bar_down", "viewport_downarrow" ],
 }
 
 all_preferences = [ ]
@@ -137,7 +159,7 @@ Preference("self_voicing_volume_drop", 0.5)
 Preference("emphasize_audio", False)
 
 # Is the gamepad enabled?
-Preference("pad_enabled", True)
+Preference("pad_enabled", True, (bool, str))
 
 # The side of the screen used for rollback. ("left", "right", or "disable")
 Preference("mobile_rollback_side", "disable")
@@ -185,11 +207,20 @@ Preference("voice_after_game_menu", False)
 # Should the game be maximized?
 Preference("maximized", False)
 
+# The position of the window.
+Preference("window_position", None, (tuple, type(None)))
+
+# The virtual desktop layout that the window position was valid for.
+Preference("window_position_layout", None, (tuple, type(None)))
+
+# Should the window position be restored?
+Preference("restore_window_position", True)
+
 class Preferences(renpy.object.Object):
     """
     Stores preferences that will one day be persisted.
     """
-    __version__ = len(all_preferences) + 2
+    __version__ = len(all_preferences) + 3
 
     # Default values, for typing purposes.
     if 1 == 0:
@@ -236,6 +267,9 @@ class Preferences(renpy.object.Object):
         web_cache_preload = False
         voice_after_game_menu = False
         maximized = False
+        window_position = (0, 0)
+        window_position_layout = ( (0, 0, 1920, 1080), )
+        restore_window_position = True
 
     def init(self):
         """
@@ -245,6 +279,14 @@ class Preferences(renpy.object.Object):
         for p in all_preferences:
             if not hasattr(self, p.name):
                 setattr(self, p.name, copy.copy(p.default))
+
+    def reset(self):
+        """
+        Resets the preferences to their default values.
+        """
+
+        for p in all_preferences:
+            setattr(self, p.name, copy.copy(p.default))
 
     def check(self):
         """

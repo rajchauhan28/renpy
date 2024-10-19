@@ -1,4 +1,4 @@
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -34,7 +34,7 @@ def place(width, height, sw, sh, placement):
         The width and height of the area the image will be
         placed in.
 
-    `size`
+    `sw`, `sh`
         The size of the image to be placed.
 
     `placement`
@@ -42,6 +42,8 @@ def place(width, height, sw, sh, placement):
     """
 
     xpos, ypos, xanchor, yanchor, xoffset, yoffset, _subpixel = placement
+
+    compute_raw = renpy.display.core.absolute.compute_raw
 
     if xpos is None:
         xpos = 0
@@ -56,20 +58,15 @@ def place(width, height, sw, sh, placement):
     if yoffset is None:
         yoffset = 0
 
-    # We need to use type, since isinstance(absolute(0), float).
-    if xpos.__class__ is float:
-        xpos *= width
+    xpos = compute_raw(xpos, width)
 
-    if xanchor.__class__ is float:
-        xanchor *= sw
+    xanchor = compute_raw(xanchor, sw)
 
     x = xpos + xoffset - xanchor
 
-    if ypos.__class__ is float:
-        ypos *= height
+    ypos = compute_raw(ypos, height)
 
-    if yanchor.__class__ is float:
-        yanchor *= sh
+    yanchor = compute_raw(yanchor, sh)
 
     y = ypos + yoffset - yanchor
 
@@ -195,6 +192,9 @@ class Displayable(renpy.object.Object):
     # Used by a transition (or transition-like object) to determine how long to
     # delay for.
     delay = None # type: float|None
+
+    # An id that can be used to identify this displayable.
+    id = None # type: str|None
 
     def __ne__(self, o):
         return not (self == o)
@@ -505,18 +505,27 @@ class Displayable(renpy.object.Object):
 
         return pos
 
+    _store_transform_event = False
+
     def set_transform_event(self, event):
         """
         Sets the transform event of this displayable to event.
+
+        transform_event_responder needs to be set on displayables that respond to transform events.
+
+        _store_transform_event should be set on displayables that store a generated transform event,
+        like Button or Bar.
         """
 
-        if event == self.transform_event:
-            return
+        if self.transform_event_responder or self._store_transform_event:
 
-        self.transform_event = event
+            if event == self.transform_event:
+                return
 
-        if self.transform_event_responder:
-            renpy.display.render.redraw(self, 0)
+            self.transform_event = event
+
+            if self.transform_event_responder:
+                renpy.display.render.redraw(self, 0)
 
     def _handles_event(self, event):
         """
@@ -583,11 +592,15 @@ class Displayable(renpy.object.Object):
             if i is not None:
                 speech = i._tts()
 
-                if speech.strip():
-                    if isinstance(speech, renpy.display.tts.TTSDone):
+                if isinstance(speech, renpy.display.tts.TTSDone):
+                    if speech.strip():
                         rv = [ speech ]
                     else:
-                        rv.append(speech)
+                        rv = [ ]
+                    break
+
+                if speech.strip():
+                    rv.append(speech)
 
 
         rv = ": ".join(rv)

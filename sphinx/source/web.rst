@@ -36,6 +36,8 @@ Some limitations are:
   that sockets and the requests library will return errors when run inside
   the web browser.
 
+* Live2D is not supported.
+
 In addition, there are some limitations that can be caused by where you host
 your game. Some hosting providers limit the size of a game and the number
 of files that can be included as part of a project. As an example,
@@ -91,6 +93,13 @@ Open build Directory
     This opens the folder containing the files produced by the build process.
 
 
+Generated folders
+-----------------
+Say, your project is in the renpy/projects/main/yourproject folder. Then you
+will find a new renpy/projects/main/yourproject-1.0-dists folder. This folder
+contains a yourproject-1.0-web subfolder, and this subfolder's zipped version,
+a yourproject-1.0-web.zip file.
+
 Uploading your Game
 -------------------
 
@@ -103,6 +112,9 @@ If you're hosting the game yourself, you'll want to make sure your web
 server serves .wasm files using the application/wasm MIME type. Doing
 so will make the game load faster, and prevent a warning from happening.
 
+Some web hosts may reject the game.zip file. In that case, rename it to
+game.data, and edit index.html to change game.zip to game.data.
+
 .. _web-presplash:
 
 Presplash
@@ -111,6 +123,16 @@ Presplash
 The Web platform natively uses a default presplash image. To override it, you can supply
 an image named `web-presplash`, `.jpg`, `.png` or `.webp`, and it will replace
 the default.
+
+The `.webp` format allows for an animated presplash image, if that's required.
+
+Icon
+---------
+
+The Web page icon can be customized by putting an image file with the name `web-icon.png`
+in the base directory of your project. This image must have a minimum resolution of
+512x512 and its width and height must be equal.
+If no custom image is given, the default Ren'Py icon is used.
 
 Progressive Downloading
 -----------------------
@@ -122,7 +144,7 @@ package your game for the web the first time. The default contents of this
 file is::
 
     # RenPyWeb progressive download rules - first match applies"
-    # '+' = progressive download, '-' = keep in game.zip (default)
+    # '+' = progressive download, '-' = keep in game.data (default)
     # See https://www.renpy.org/doc/html/build.html#classifying-and-ignoring-files for matching
     #
     # +/- type path
@@ -204,19 +226,20 @@ Javascript
 ----------
 
 Ren'Py can run Javascript, using three functions in the ``emscripten``
-module. This module is only present when running inside the web browser,
-which can be tested using :var:`renpy.emscripten` - though you still need
-to import the module before using it.
+module. This module is available as :var:`renpy.emscripten` when
+running on the web platform. When not running on the web platform,
+renpy.emscripten is False.
 
-.. function:: emscripten.run_script(script)
+
+.. function:: renpy.emscripten.run_script(script)
 
     Runs the given Javascript script. This does not return a result.
 
-.. function:: emscripten.run_script_int(script)
+.. function:: renpy.emscripten.run_script_int(script)
 
     Runs the given Javascript script, and returns its result as an integer.
 
-.. function:: emscripten.run_script_string(script)
+.. function:: renpy.emscripten.run_script_string(script)
 
     Runs the given Javascript script, and returns its result as a string.
 
@@ -227,22 +250,6 @@ may be replaced when Ren'Py is updated.
 Javascript can also call into Ren'Py using the window.renpy_exc, window.renpy_get,
 and window.renpy_set functions. For the documentation of these functions, please
 read ``web/renpy-pre.js``.
-
-
-Bytecode Cache
---------------
-
-In Ren'Py 8.1, loading may take longer than required, as Ren'Py may need
-to compile the python into bytecode after downloading it. To avoid this, retrieve
-the bytecode cache by:
-
-* Opening the game in the browser. Hit f12 while the presplash is loading
-  to open the javascript console.
-
-* In the javascript console, type ``downloadBytecode()``. This will cause
-  your browser to download ``bytecode-311.rpyb``.
-
-* Place this in the ``game/cache`` directory of your game, and rebuild.
 
 
 Hamburger Menu

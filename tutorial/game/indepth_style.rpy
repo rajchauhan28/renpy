@@ -68,25 +68,25 @@ label styles_menu:
         e "What would you like to know about styles?"
 
         "Style basics.":
-            call style_basics
+            call style_basics from _call_style_basics
 
         "General style properties.":
-            call style_general
+            call style_general from _call_style_general
 
         "Text style properties.":
-            call style_text
+            call style_text from _call_style_text
 
         "Window and Button style properties.":
-            call style_button
+            call style_button from _call_style_button
 
         "Bar style properties.":
-            call style_bar
+            call style_bar from _call_style_bar
 
         "Box, Grid, and Fixed style properties.":
-            call style_box
+            call style_box from _call_style_box
 
         "The Displayable Inspector.":
-            call style_inspector
+            call style_inspector from _call_style_inspector
 
         "That's all I want to know.":
             return
@@ -171,7 +171,7 @@ label style_basics:
 
     show style3 at examplepos
 
-    e "Finally, there is the the style statement, which creates or changes a named style. By giving Text the style argument, we tell it to use the blue_text style."
+    e "Finally, there is the style statement, which creates or changes a named style. By giving Text the style argument, we tell it to use the blue_text style." id style_basics_ac6a8414
 
     hide style3
     hide example
@@ -179,7 +179,7 @@ label style_basics:
 
     e "A style property can inherit from a parent. If a style property is not given in a style, it comes from the parent of that style."
 
-    e "By default the parent of the style has the same name, with the prefix up to the the first underscore removed. If the style does not have an underscore in its name, 'default' is used."
+    e "By default the parent of the style has the same name, with the prefix up to the first underscore removed. If the style does not have an underscore in its name, 'default' is used." id style_basics_49c5fbfe
 
     e "For example, blue_text inherits from text, which in turn inherits from default. The default style defines all properties, so it doesn't inherit from anything."
 

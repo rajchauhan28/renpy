@@ -1,4 +1,4 @@
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -26,7 +26,7 @@
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import PY2, basestring, bchr, bord, chr, open, pystr, range, round, str, tobytes, unicode # *
 
-from typing import Optional, List
+from typing import Optional, List, Callable
 
 
 import collections
@@ -57,7 +57,7 @@ sound = True
 debug = False
 
 # Ditto, but for sound operations
-debug_sound = None
+debug_sound = os.environ.get("RENPY_DEBUG_SOUND", False)
 
 # Is rollback enabled? (This only controls if the user-invoked
 # rollback command does anything)
@@ -274,6 +274,9 @@ default_developer = False
 
 # A logfile that logging messages are sent to.
 log = None
+
+# Clear config.log at startup
+clear_log = False
 
 # Lint hooks.
 lint_hooks = [ ]
@@ -552,6 +555,9 @@ say_layer = "screens"
 # The layer the choice screen is shown on.
 choice_layer = "screens"
 
+# The layer the choice screen is shown on, when passed (nvl=True).
+nvl_choice_layer = "screens"
+
 # If true, we will not use the .report_traceback method to produced
 # prettier tracebacks.
 raw_tracebacks = ("RENPY_RAW_TRACEBACKS" in os.environ)
@@ -599,7 +605,10 @@ dispatch_gesture = None
 
 # The table mapping gestures to events used by the default function.
 gestures = {
-    "n_s_w_e_w_e" : "progress_screen",
+    "s_n_e_s_w" : "progress_screen",
+    "n_e_s_w" : "progress_screen",
+    "ne_se" : "accessibility",
+    "nw_sw" : "accessibility",
     }
 
 # Sizes of gesture components and strokes, as a fraction of screen_width.
@@ -682,6 +691,9 @@ quit_on_mobile_background = False
 
 # Should Ren'Py pass the raw joystick (not controller) events.?
 pass_joystick_events = False
+
+# Should Ren'Py pass the controller events?
+pass_controller_events = False
 
 # A list of screens that should be shown when the overlay is enabled.
 overlay_screens = [ ]
@@ -844,7 +856,7 @@ character_id_prefixes = [ ]
 nw_voice = True
 
 # If not None, a function that's used to process say arguments.
-say_arguments_callback = None
+say_arguments_callback = None # type: Callable|None
 
 # Should we show an atl interpolation for one frame?
 atl_one_frame = True
@@ -891,7 +903,7 @@ profile_time = 1.0 / 50.0
 # What event do we check to see if the profile needs to be printed?
 profile_to_event = "flip"
 
-# Should we instantly zap transient displayables, or properly hide them?
+# Should unhandled events be ignored?
 fast_unhandled_event = True
 
 # Should a fast path be used when displaying empty windows.
@@ -978,7 +990,7 @@ skip_sounds = False
 lint_screens_without_parameters = True
 
 # If not None, a function that's used to process and modify menu arguments.
-menu_arguments_callback = None
+menu_arguments_callback = None # type: Callable|None
 
 # Should Ren'PY automatically clear the screenshot?
 auto_clear_screenshot = True
@@ -1079,7 +1091,8 @@ touch_keyboard = os.environ.get("RENPY_TOUCH_KEYBOARD", False)
 
 # The size of the framebuffer Ren'Py creates, which doubles as the
 # largest texture size.
-fbo_size = (4096, 4096)
+max_texture_size = (4096, 4096)
+fbo_size = max_texture_size
 
 # Names to ignore the redefinition of.
 lint_ignore_redefine = [ "gui.about" ]
@@ -1163,7 +1176,7 @@ scene_clears_layer_at_list = True
 mouse_displayable = None
 
 # The default bias for the GL level of detail.
-gl_lod_bias = -.5
+gl_lod_bias = -.6
 
 # A dictionary from a tag (or None) to a function that adjusts the attributes
 # of that tag.
@@ -1204,13 +1217,13 @@ input_caret_blink = 1.
 single_movie_channel = None
 
 # Should Ren'Py raise exceptions when finding an image?
-raise_image_exceptions = True
+raise_image_exceptions = None
 
 # Should the size transform property only accept numbers of pixels ?
 relative_transform_size = True
 
 # Should tts of layers be from front to back?
-tts_front_to_back = False
+tts_front_to_back = True
 
 # Should live2d loading be logged to log.txt
 log_live2d_loading = False
@@ -1398,6 +1411,101 @@ ex_rollback_classes = [ ]
 # Should we revert to the old behavior of box_reverse?
 simple_box_reverse = False
 
+# Should we revert to the right/bottom-alignment for non-simple reversed boxes?
+box_reverse_align = False
+
+# If True, positional-only parameters are allowed in ATL transform signatures.
+atl_pos_only = False
+
+# If True, positional-only parameters in ATL transform signatures are treated as pos-or-keyword.
+atl_pos_only_as_pos_or_kw = False
+
+# A map from font name to the hinting for the font.
+font_hinting = { None : "auto" }
+
+# Should ATL interpolation handle mixed position types,
+# at the cost of returning instances of the position type ?
+mixed_position = True
+
+# Should text interpolations be treated as Python expressions?
+interpolate_exprs = True
+
+# Should we execute costly tasks which are
+# avoidable when not generating the documentation ?
+generating_documentation = False
+
+# Is the user allowed to save, or to see the existing save files?
+save = True
+
+# Should the persistent file be updated?
+save_persistent = True
+
+# Should new drags be added to the top of a drag group.
+drag_group_add_top = True
+
+# Should loading of tl scripts be deferred?
+defer_tl_scripts = False
+
+# Should transitions take placement from child displayables?
+transitions_use_child_placement = True
+
+# Which transform events should containers pass to their children?
+containers_pass_transform_events = {'hover', 'idle', 'insensitive', 'selected_hover', 'selected_idle' }
+
+# Should the say screens be given the replace event for the second and
+# later pauses?
+say_replace_event = True
+
+# Will screens never cancel hide and replace events?
+screens_never_cancel_hide = True
+
+# A list of transforms that are applied to entire layers.
+layer_transforms = { }
+
+# True if xfill or yfill can cause a window to shrink.
+fill_shrinks_frame = False
+
+# Set this to true to log events to log.txt.
+log_events = os.environ.get("RENPY_LOG_EVENTS", False)
+
+# Callbacks to run just before python exits.
+python_exit_callbacks = [ ]
+
+# Should exceptions be raised if an image fails to load.
+raise_image_load_exceptions = None
+
+# 8.2.2
+
+# A map from name to text shader object.
+textshaders = { } # type: dict[str, renpy.text.shader.TextShader]
+
+# A map from names to functions that return text shaders.
+textshader_callbacks = { } # type: dict[str, Callable[[], str]]
+
+# The default textshader
+default_textshader = None # type: str | None
+
+# A function that is called with a tuple of shader parts, and returns a tuple of shader parts.
+shader_part_filter = None # type: Optional[Callable[[tuple[str]], tuple[str]]]
+
+# Should munging occur everywhere in strings.
+munge_in_strings = True
+
+# The version of the character callback.
+character_callback_compat = None
+
+# A list of who arguments to translate that will not be translated.
+translate_ignore_who = [ ]
+
+# The layer built-in screens exist on.
+interface_layer = "screens"
+
+# Should Transform crop be limited to the width and height of the image being cropped?
+limit_transform_crop = False
+
+# Marking labels, images and audio in replays as seen is not allowed.
+no_replay_seen = False
+
 
 del os
 del collections
@@ -1432,3 +1540,15 @@ def init():
     gl_blend_func["multiply"] = (GL_FUNC_ADD, GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA, GL_FUNC_ADD, GL_ZERO, GL_ONE)
     gl_blend_func["min"] = (GL_MIN, GL_ONE, GL_ONE, GL_MIN, GL_ONE, GL_ONE)
     gl_blend_func["max"] = (GL_MAX, GL_ONE, GL_ONE, GL_MAX, GL_ONE, GL_ONE)
+
+
+def post_init():
+    """
+    Called after all init scripts have been run.
+    """
+
+    if renpy.config.raise_image_exceptions is None:
+        renpy.config.raise_image_exceptions = renpy.config.developer
+
+    if renpy.config.raise_image_load_exceptions:
+        renpy.config.raise_image_load_exceptions = renpy.config.developer

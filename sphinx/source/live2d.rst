@@ -26,10 +26,6 @@ It supports the playback of expressions and motions.
 
 .. warning::
 
-    Live2D is not supported on the x86_64 Android platform, as a DLL is not
-    provided for this platform. This means that it may have problems running
-    on the Android emulator or ChromeOS.
-
     Live2D is not supported on the web platform.
 
     Installing Live2D on iOS requires copying the static libraries into your
@@ -46,7 +42,7 @@ business makes more than a certain amount of money a year.
 
 Once you've downloaded Live2D, you can install it from the Ren'Py launcher. To
 install, go to "preferences", then click "Install libraries". Place the
-CubismSdkForNative-4-r.1.zip file in the Ren'Py SDK directory, which can
+:file:`CubismSdkForNative-5-r.1.zip` file in the Ren'Py SDK directory, which can
 be accessed using the button in the bottom right of the install libraries
 screen. Then click "Install Live2D Cubism SDK for Native". After a short
 amount of time, Live2D will be installed.
@@ -220,9 +216,9 @@ to work even without Live2D, you could use a wrapper or workaround, for example:
     init python:
         def MyLive2D(*args, fallback=Placeholder(text="no live2d"), **kwargs):
             if renpy.has_live2d():
-                 return Live2D(*args, **kwargs)
+                return Live2D(*args, **kwargs)
             else:
-                 return fallback
+                return fallback
 
     image kobayashi = MyLive2D(...)
     image eileen moving = MyLive2D(..., fallback="eileen happy")

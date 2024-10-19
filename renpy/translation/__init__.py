@@ -1,4 +1,4 @@
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -38,6 +38,31 @@ import codecs
 ################################################################################
 # Script
 ################################################################################
+
+class TranslateInfo(object):
+    """
+    This is the object that returns information about the a translation.
+    """
+
+    def __init__(self, node):
+
+        self.language = node.language
+        self.identifier = node.identifier
+        self.filename = node.filename
+        self.linenumber = node.linenumber
+
+        if isinstance(node, renpy.ast.TranslateSay):
+            block = [ node ]
+        else:
+            block = node.block
+
+        self.source = [ ]
+
+        for i in block:
+            try:
+                self.source.append(i.get_code())
+            except Exception as e:
+                pass
 
 
 class ScriptTranslator(object):
@@ -81,6 +106,14 @@ class ScriptTranslator(object):
         # in that file.
         self.additional_strings = collections.defaultdict(list)
 
+        # Scan for languages.
+
+        for i in renpy.exports.list_files():
+            parts = i.split("/")
+            if parts[0] == "tl":
+                if len(parts) >= 3 and parts[1] != "None":
+                    self.languages.add(parts[1])
+
     def count_translates(self):
         """
         Return the number of dialogue blocks in the game.
@@ -105,6 +138,7 @@ class ScriptTranslator(object):
         Menu = renpy.ast.Menu
         UserStatement = renpy.ast.UserStatement
         Translate = renpy.ast.Translate
+        TranslateSay = renpy.ast.TranslateSay
 
         filename = renpy.lexer.unelide_filename(nodes[0].filename)
         filename = os.path.normpath(os.path.abspath(filename))
@@ -158,7 +192,7 @@ class ScriptTranslator(object):
                 for s in strings:
                     self.additional_strings[filename].append((n.linenumber, s))
 
-            elif type_n is Translate:
+            elif type_n is Translate or type_n is TranslateSay:
 
                 if n.language is None:
                     if n.identifier in self.default_translates:
@@ -192,7 +226,10 @@ class ScriptTranslator(object):
             translate = self.language_translates[identifier, language]
             next_node = self.default_translates[identifier].after
 
-            renpy.ast.chain_block(translate.block, next_node)
+            if isinstance(translate, renpy.ast.TranslateSay):
+                translate.chain(next_node)
+            else:
+                renpy.ast.chain_block(translate.block, next_node)
 
         self.chain_worklist = unchained
 
@@ -213,8 +250,24 @@ class ScriptTranslator(object):
         if tl is None:
             tl = self.default_translates[identifier]
 
-        return tl.block[0]
+        if isinstance(tl, renpy.ast.TranslateSay):
+            return tl
+        else:
+            return tl.block[0]
 
+    def get_translate_info(self, identifier, language):
+
+        identifier = identifier.replace('.', '_')
+
+        if language is not None:
+            tl = self.language_translates.get((identifier, language), None)
+        else:
+            tl = self.default_translates.get(identifier, None)
+
+        if tl is None:
+            return None
+
+        return TranslateInfo(tl)
 
 def encode_say_string(s):
     """
@@ -326,6 +379,43 @@ class Restructurer(object):
 
         return [ tl, ed ]
 
+
+    def combine_translate(self, node):
+        """
+        If we have a Translate containing a Say statement and an EndTranslate,
+        combine them into a TranslateSay statement.
+        """
+
+        if not isinstance(node, renpy.ast.Translate):
+            return node
+
+        if not len(node.block) == 1:
+            return node
+
+        if not isinstance(node.block[0], renpy.ast.Say):
+            return node
+
+        say = node.block[0]
+
+        rv = renpy.ast.TranslateSay(
+            (say.filename, say.linenumber),
+            say.who,
+            say.what,
+            say.with_,
+            interact=say.interact,
+            attributes=say.attributes,
+            arguments=say.arguments,
+            temporary_attributes=say.temporary_attributes,
+            identifier=node.identifier,
+            language=node.language,
+            alternate=node.alternate)
+
+        rv.name = say.name
+        rv.explicit_identifier = say.explicit_identifier
+
+        return rv
+
+
     def callback(self, children):
         """
         This should be called with a list of statements. It restructures the statements
@@ -371,7 +461,26 @@ class Restructurer(object):
             new_children.extend(nodes)
             group = [ ]
 
-        children[:] = new_children
+        # Combine translate and say into TranslateSay.
+        new_children = [ self.combine_translate(node) for node in new_children ]
+
+        # Remove EndTranslater when not required.
+
+        new_new_children = [ ]
+
+        old_node = None
+
+        for node in new_children:
+
+            if isinstance(old_node, renpy.ast.TranslateSay) and isinstance(node, renpy.ast.EndTranslate):
+                old_node.next = node.next
+                old_node = None
+                continue
+
+            new_new_children.append(node)
+            old_node = node
+
+        children[:] = new_new_children
 
 
 def restructure(children):
@@ -669,6 +778,8 @@ def change_language(language, force=False):
     if old_language != language:
         clean_data()
 
+    renpy.exports.load_language(language)
+
     renpy.game.preferences.language = language
     if old_language == language and not force:
         return
@@ -750,6 +861,50 @@ def get_translation_identifier():
 
     ctx = renpy.game.contexts[-1]
     return ctx.translate_identifier or ctx.deferred_translate_identifier
+
+
+def get_translation_info(identifier=None, language=None):
+    """
+    :doc: translation_functions
+
+    Returns information about the translation with the given identifier, or about the default
+    text if `language` is None.
+
+    `identifier`
+        The translation identifier, or None to get information about currently displayed
+        text.
+
+    `language`
+        Either a language name, or None to get information about the default text.
+
+    If no information is available, returns None. Else returns an object with the following
+    attributes:
+
+    .. attribute:: language
+        The language of the translation.
+
+    .. attribute:: identifier
+        The identifier of the translation.
+
+    .. attribute:: filename
+        The filename the translation is found in.
+
+    .. attribute:: linenumber
+        The line number the translation is found on.
+
+    .. attribute:: source
+        A list of strings that make up the translation. Only some statements can be included here,
+        including the say statements that make up most translations.
+    """
+
+    if identifier is None:
+        identifier = get_translation_identifier()
+
+    if identifier is None:
+        return None
+
+    tl = renpy.game.script.translator
+    return tl.get_translate_info(identifier, language)
 
 
 def known_languages():
@@ -944,6 +1099,11 @@ locales = {
     "chs": "simplified_chinese",
     "cht": "traditional_chinese",
     "zh": "traditional_chinese",
+    "zh_tw" : "traditional_chinese",
+    "zh_cn" : "simplified_chinese",
+    "zh_hk" : "traditional_chinese",
+    "zh_sg" : "simplified_chinese",
+    "zh_mo" : "traditional_chinese",
 }
 
 

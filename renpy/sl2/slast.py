@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -67,6 +67,10 @@ filename = '<screen language>'
 # A log that's used for profiling information.
 profile_log = renpy.log.open("profile_screen", developer=True, append=False, flush=False)
 
+# The names of sticky style properties. These are properties that are
+# inherited by children, unless overridden.
+STICKY_PROPERTIES = [ "group_alt", "extra_alt" ]
+
 
 def compile_expr(loc, node):
     """
@@ -74,10 +78,7 @@ def compile_expr(loc, node):
     """
 
     filename = loc[0]
-    if filename in renpy.python.py3_files:
-        flags = renpy.python.py3_compile_flags
-    else:
-        flags = renpy.python.new_compile_flags
+    flags = renpy.python.new_compile_flags | renpy.python.file_compiler_flags.get(filename, 0)
 
     expr = ast.Expression(body=node)
     renpy.python.fix_locations(expr, 1, 0)
@@ -173,6 +174,10 @@ class SLContext(renpy.ui.Addable):
         # The old and new generations of the use_cache.
         self.new_use_cache = { } # type: dict[Any, Any]
         self.old_use_cache = { } # type: dict[Any, Any]
+
+        # A map from a sticky property to its value.
+        self.sticky = { } # type: dict[str, Any]
+
 
     def add(self, d, key):
         self.children.append(d)
@@ -514,7 +519,7 @@ class SLBlock(SLNode):
 
         if self.atl_transform is not None:
             transform = ATLTransform(self.atl_transform, context=context.scope)
-            transform.parent_transform = self.transform # type: ignore
+            transform.parent_transform = self.transform
 
             if "at" in context.keywords:
                 try:
@@ -977,6 +982,13 @@ class SLDisplayable(SLBlock):
                 else:
                     keywords["style"] = ctx.style_prefix + "_" + style_suffix
 
+            for k in STICKY_PROPERTIES:
+                if k in keywords:
+                    ctx.sticky = dict(ctx.sticky)
+                    ctx.sticky[k] = keywords[k]
+
+            keywords.update(ctx.sticky)
+
             old_d = cache.displayable
             if old_d:
                 old_main = old_d._main or old_d
@@ -1129,6 +1141,7 @@ class SLDisplayable(SLBlock):
                     keywords['context'] = ctx
 
                 d = self.displayable(*positional, **keywords) # type: ignore
+                d._unique()
                 main = d._main or d
 
                 main._location = self.location
@@ -1155,6 +1168,8 @@ class SLDisplayable(SLBlock):
             else:
                 for i in ctx.children:
                     main.add(i) # type: ignore
+
+        main.id = widget_id
 
         d = d # type: ignore
         old_d = old_d # type: ignore
@@ -2045,7 +2060,7 @@ class SLUse(SLNode):
             args = [ ]
             kwargs = { }
 
-        renpy.display.screen.use_screen(self.target, _name=name, _scope=context.scope, *args, **kwargs)
+        renpy.display.screen.use_screen(self.target, *args, _name=name, _scope=context.scope, **kwargs)
 
     def execute(self, context):
 
@@ -2410,6 +2425,8 @@ class SLCustomUse(SLNode):
         # If we have any children, pass them to (possible) transclude
         if self.block.children:
             ctx.transclude = self.block
+        else:
+            ctx.transclude = None
 
         try:
             ast.execute(ctx)

@@ -1,4 +1,4 @@
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -37,7 +37,9 @@ text_tags = dict(
     alpha=True,
     alt=True,
     art=True,
+    axis=True,
     done=False,
+    instance=True,
     image=False,
     p=False,
     w=False,
@@ -54,6 +56,7 @@ text_tags = dict(
     noalt=True,
     nw=False,
     s=True,
+    shader=True,
     rt=True,
     rb=True,
     k=True,
@@ -67,7 +70,7 @@ text_tags[""] = True
 
 # This checks the text tags in a string to be sure they are all matched, and
 # properly nested. It returns an error message, or None if the line is okay.
-def check_text_tags(s):
+def check_text_tags(s, check_unclosed=False):
     """
     :doc: lint
 
@@ -100,6 +103,9 @@ def check_text_tags(s):
             continue
 
         # Strip off arguments for tags.
+        text = text.partition('=')[0]
+        text = text.partition(':')[0]
+
         if text.find('=') != -1:
             text = text[:text.find('=')]
 
@@ -119,6 +125,9 @@ def check_text_tags(s):
 
         if all_tags[text]:
             tag_stack.append(text)
+
+    if check_unclosed and tag_stack:
+            return "One or more text tags were left open at the end of the string: " + ", ".join(repr(i) for i in tag_stack)
 
     return None
 
@@ -153,6 +162,7 @@ def filter_text_tags(s, allow=None, deny=None):
             rv.append("\n")
         elif tokentype == TAG:
             kind = text.partition("=")[0]
+            kind = kind.partition(":")[0]
 
             if kind and (kind[0] == "/"):
                 kind = kind[1:]

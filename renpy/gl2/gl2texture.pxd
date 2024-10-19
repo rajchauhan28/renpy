@@ -46,10 +46,10 @@ cdef class TextureLoader:
     cdef object texture_load_queue
 
     # The maximum size of a texture.
-    cdef GLint max_texture_width
-    cdef GLint max_texture_height
+    cdef public GLint max_texture_width
+    cdef public GLint max_texture_height
 
-    cdef GLfloat max_anisotropy
+    cdef public GLfloat max_anisotropy
 
 
 cdef class GLTexture(GL2Model):
@@ -72,5 +72,11 @@ cdef class GLTexture(GL2Model):
     # space.
     cdef public int texture_width
     cdef public int texture_height
+
+    # Borders
+    cdef public int bl
+    cdef public int bt
+    cdef public int br
+    cdef public int bb
 
     cpdef subsurface(GLTexture self, t)

@@ -735,7 +735,7 @@ translate japanese strings:
 
     # renpy/common/00accessibility.rpy:191
     old "The options on this menu are intended to improve accessibility. They may not work with all games, and some combinations of options may render the game unplayable. This is not an issue with the game or engine. For the best results when changing fonts, try to keep the text size the same as it originally was."
-    new "このメニューのオプションはアクセス性を改善するためのものです。すべてのゲームで動作するわけではなく、特定の組合せではゲームを正常にレンダリングしないでしょう。これはゲームやエンジンの問題ではありません。フォント変更時に最良の結果を得るには、テキストサイズをオリジナルのままにしてください。"
+    new "このメニューのオプションはアクセシビリティーを改善するためのものです。すべてのゲームで動作するわけではなく、特定の組合せではゲームを正常にレンダリングしないでしょう。これはゲームやエンジンの問題ではありません。フォント変更時に最良の結果を得るには、テキストサイズをオリジナルのままにしてください。"
 
     # renpy/common/00preferences.rpy:430
     old "font transform"
@@ -791,7 +791,7 @@ translate japanese strings:
 
     # renpy/common/00preferences.rpy:490
     old "accessibility menu"
-    new "アクセス性メニュー"
+    new "アクセシビリティーメニュー"
 
     # renpy/common/00preferences.rpy:493
     old "high contrast text"
@@ -919,4 +919,104 @@ translate japanese strings:
     # renpy/common/00sync.rpy:631
     old "Sync Error"
     new "同期エラー"
+
+    # renpy/common/00director.rpy:1776
+    old "Customize director.transforms to add more transforms."
+    new "director.transform を設定して transform を追加できます。"
+
+    # renpy/common/00director.rpy:1821
+    old "Click to set."
+    new "クリックで設定します"
+
+    # renpy/common/00director.rpy:1822
+    old "Customize director.transitions to add more transitions."
+    new "director.transitions を設定してトランジションを追加できます。"
+
+    # renpy/common/00director.rpy:1845
+    old "Customize director.audio_channels to add more channels."
+    new "director.audio_channels を設定してチャンネルを追加できます"
+
+    # renpy/common/00preferences.rpy:573
+    old "restore window position"
+    new "ウィンドウ位置を復元する"
+
+    # renpy/common/00speechbubble.rpy:408
+    old "(clear retained bubbles)"
+    new "(保持されている吹き出しをクリアします)"
+
+    # renpy/common/00updater.rpy:504
+    old "No update methods found."
+    new "update メソッドが見付かりません"
+
+    # renpy/common/00updater.rpy:551
+    old "Could not download file list: "
+    new "ファイルリストがダウンロードできません : "
+
+    # renpy/common/00updater.rpy:554
+    old "File list digest does not match."
+    new "File listの要約がマッチしません"
+
+    # renpy/common/00updater.rpy:2072
+    old "Preparing to download the game data."
+    new "ゲームデータのダウンロードを準備します。"
+
+    # renpy/common/00updater.rpy:2074
+    old "Downloading the game data."
+    new "ゲームデータをダウンロードしています"
+
+    # renpy/common/00updater.rpy:2076
+    old "The game data has been downloaded."
+    new "ゲームデータがダウンロードされました"
+
+    # renpy/common/00updater.rpy:2078
+    old "An error occured when trying to download game data:"
+    new "ゲームデータダウンロード中にエラーが発生しました:"
+
+    # renpy/common/00updater.rpy:2083
+    old "This game cannot be run until the game data has been downloaded."
+    new "このゲームはゲームデータのダウンロードまでは実行できません"
+
+    # renpy/common/00updater.rpy:2090
+    old "Retry"
+    new "リトライ"
+
+    # renpy/common/00accessibility.rpy:120
+    old "Accessibility Menu. Use up and down arrows to navigate, and enter to activate buttons and bars."
+    new "アクセシビリティーメニュー。上下矢印キーをナビゲーションに使用し、ボタンとバーのアクティブ化にはエンターを使用します"
+
+    # renpy/common/00accessibility.rpy:197
+    old "Self-voicing support is limited when using a touch screen."
+    new "セルフボイシングのサポートはタッチスクリーン使用時に限定されます"
+
+    # renpy/common/00gui.rpy:454
+    old "Are you sure you want to continue where you left off?"
+    new "続きから開始しますか"
+
+    # renpy/common/00preferences.rpy:438
+    old "self voicing enable"
+    new "セルフボイシング有効化"
+
+    # renpy/common/00preferences.rpy:440
+    old "self voicing disable"
+    new "セルフボイシング無効化"
+
+    # renpy/common/00preferences.rpy:455
+    old "clipboard voicing enable"
+    new "クリップボードボイシング有効化"
+
+    # renpy/common/00preferences.rpy:457
+    old "clipboard voicing disable"
+    new "クリップボードボイシング無効化"
+
+    # renpy/common/00preferences.rpy:464
+    old "debug voicing enable"
+    new "デバックボイシング有効化"
+
+    # renpy/common/00preferences.rpy:466
+    old "debug voicing disable"
+    new "デバックボイシング無効化"
+
+    # renpy/common/00preferences.rpy:595
+    old "reset"
+    new "リセット"
 

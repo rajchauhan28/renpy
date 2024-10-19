@@ -62,11 +62,20 @@ static int rwops_read(void *opaque, uint8_t *buf, int buf_size) {
     SDL_RWops *rw = (SDL_RWops *) opaque;
 
     int rv = rw->read(rw, buf, 1, buf_size);
+
+	if (rv == 0) {
+		return AVERROR_EOF;
+	}
+
     return rv;
 
 }
 
+#if (LIBAVFORMAT_VERSION_MAJOR < 61)
 static int rwops_write(void *opaque, uint8_t *buf, int buf_size) {
+#else
+static int rwops_write(void *opaque, const uint8_t *buf, int buf_size) {
+#endif
     printf("Writing to an SDL_rwops is a really bad idea.\n");
     return -1;
 }
@@ -174,7 +183,7 @@ typedef struct MediaState {
 	/* This becomes true once the decode thread has finished initializing
 	 * and the readers and writers can do their thing.
 	 */
-	int ready; // Lock.
+	int ready;
 
 	/* This is set to true when data has been read, in order to ask the
 	 * decode thread to produce more data.
@@ -580,7 +589,7 @@ static AVCodecContext *find_context(AVFormatContext *ctx, int index) {
 		return NULL;
 	}
 
-	AVCodec *codec = NULL;
+	const AVCodec *codec = NULL;
 	AVCodecContext *codec_ctx = NULL;
 
 	codec_ctx = avcodec_alloc_context3(NULL);
@@ -685,9 +694,14 @@ static void decode_audio(MediaState *ms) {
 			}
 
             converted_frame->sample_rate = audio_sample_rate;
+#if (LIBAVUTIL_VERSION_MAJOR < 59)
             converted_frame->channel_layout = AV_CH_LAYOUT_STEREO;
+#else
+            converted_frame->ch_layout = (AVChannelLayout) AV_CHANNEL_LAYOUT_STEREO;
+#endif
             converted_frame->format = AV_SAMPLE_FMT_S16;
 
+#if (LIBAVUTIL_VERSION_MAJOR < 59)
 			if (!ms->audio_decode_frame->channel_layout) {
 				ms->audio_decode_frame->channel_layout = av_get_default_channel_layout(ms->audio_decode_frame->channels);
 
@@ -706,6 +720,26 @@ static void decode_audio(MediaState *ms) {
 				    swr_set_matrix(ms->swr, stereo_matrix, 1);
 				}
 			}
+#else
+			if (ms->audio_decode_frame->ch_layout.order == AV_CHANNEL_ORDER_UNSPEC) {
+				av_channel_layout_default(&ms->audio_decode_frame->ch_layout, ms->audio_decode_frame->ch_layout.nb_channels);
+
+				if (audio_equal_mono && (ms->audio_decode_frame->ch_layout.nb_channels == 1)) {
+				    swr_alloc_set_opts2(
+                        &ms->swr,
+                        &converted_frame->ch_layout,
+                        converted_frame->format,
+                        converted_frame->sample_rate,
+                        &ms->audio_decode_frame->ch_layout,
+                        ms->audio_decode_frame->format,
+                        ms->audio_decode_frame->sample_rate,
+                        0,
+                        NULL);
+
+				    swr_set_matrix(ms->swr, stereo_matrix, 1);
+				}
+			}
+#endif
 
 			if(swr_convert_frame(ms->swr, converted_frame, ms->audio_decode_frame)) {
 				av_frame_free(&converted_frame);
@@ -1154,7 +1188,11 @@ static int decode_thread(void *arg) {
 
 	// Compute the number of samples we need to play back.
 	if (ms->audio_duration < 0) {
+#if (LIBAVFORMAT_VERSION_MAJOR < 62)
 		if (av_fmt_ctx_get_duration_estimation_method(ctx) != AVFMT_DURATION_FROM_BITRATE) {
+#else
+		if (ctx->duration_estimation_method != AVFMT_DURATION_FROM_BITRATE) {
+#endif
 
 			long long duration = ((long long) ctx->duration) * audio_sample_rate;
 			ms->audio_duration = (unsigned int) (duration /  AV_TIME_BASE);
@@ -1314,7 +1352,11 @@ static int decode_sync_start(void *arg) {
 
 	// Compute the number of samples we need to play back.
 	if (ms->audio_duration < 0) {
+#if (LIBAVFORMAT_VERSION_MAJOR < 62)
 		if (av_fmt_ctx_get_duration_estimation_method(ctx) != AVFMT_DURATION_FROM_BITRATE) {
+#else
+		if (ctx->duration_estimation_method != AVFMT_DURATION_FROM_BITRATE) {
+#endif
 
 			long long duration = ((long long) ctx->duration) * audio_sample_rate;
 			ms->audio_duration = (unsigned int) (duration /  AV_TIME_BASE);
@@ -1465,16 +1507,8 @@ int media_read_audio(struct MediaState *ms, Uint8 *stream, int len) {
 	return rv;
 }
 
-void media_wait_ready(struct MediaState *ms) {
-#ifndef __EMSCRIPTEN__
-    SDL_LockMutex(ms->lock);
-
-    while (!ms->ready) {
-        SDL_CondWait(ms->cond, ms->lock);
-    }
-
-    SDL_UnlockMutex(ms->lock);
-#endif
+int media_is_ready(struct MediaState *ms) {
+	return ms->ready;
 }
 
 

@@ -1,4 +1,4 @@
-﻿# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -112,11 +112,13 @@ init -1500 python hide:
     config.font_transforms["dejavusans"] = dejavusans
 
 screen _accessibility():
+    layer config.interface_layer
     zorder 2000
     modal True
 
     frame:
         style_group ""
+        alt _("Accessibility Menu. Use up and down arrows to navigate, and enter to activate buttons and bars.")
 
         has side "c b":
             spacing gui._scale(10)
@@ -192,6 +194,9 @@ screen _accessibility():
 
                     label _("Self-Voicing")
 
+                    if renpy.variant("touch"):
+                        text _("Self-voicing support is limited when using a touch screen.")
+
                     null height 10
 
                     textbutton _("Off"):
@@ -225,8 +230,6 @@ screen _accessibility():
                     null height 10
 
                     bar value Preference("self voicing volume drop")
-
-
 
 
         vbox:

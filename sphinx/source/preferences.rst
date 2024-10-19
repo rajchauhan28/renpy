@@ -82,12 +82,11 @@ can then change it again.)
 
     If None, Ren'Py will attempt to draw at the monitor's full framerate.
 
-.. var:: preferences.gl_powersave = "auto"
+.. var:: preferences.gl_powersave = True
 
     This determines how often Ren'Py will redraw an unchanging screen. If True,
     Ren'Py will only draw the screen 5 times a second. If False, it will always
-    draw at the full framerate possible. If "auto", it will draw at full speed
-    when the device is powered, and 5hz when it is running on battery.
+    draw at the full framerate possible.
 
 .. var:: preferences.gl_tearing = False
 
@@ -181,6 +180,52 @@ can then change it again.)
     voice will be stopped when the game menu is shown. The equivalent of the
     "voice after menu" preference.
 
+.. var:: preferences.restore_window_position = True
+
+    If True, Ren'Py will attempt to restore the window position when the game
+    is restarted. If False, Ren'Py will not attempt to restore the window
+    position. The equivalent of the "restore window position" preference.
+
+.. _mixer-defaults:
+
+Mixer Defaults
+--------------
+
+These variables may only be set with the ``default`` statement.
+
+.. var:: preferences.volume.main = 1.0
+
+    The default volume of the main mixer, which is applied to all channels in
+    addition to the per-channel mixer.This should be a number between 0.0 and 1.0, with 1.0 being full volume.
+
+.. var:: preferences.volume.music = 1.0
+
+    The default volume of the music mixer, which is used for the music and
+    movie channels. This should be a number between 0.0 and 1.0,
+    with 1.0 being full volume.
+
+.. var:: preferences.volume.sfx = 1.0
+
+    The default volume of the sfx mixer, which is used for the sound and
+    audio channels. This should be a number between 0.0 and 1.0,
+    with 1.0 being full volume.
+
+.. var:: preferences.volume.voice = 1.0
+
+    The default volume of the voice mixer, which is used for the voice
+    channel (and hence the voice statement, auto-voice, etc.).
+    This should be a number between 0.0 and 1.0, with 1.0 being full volume.
+
+If channels defined using :func:`renpy.music.register_channel` are used, the
+default volume of those channels can be set using the preferences.volume.`mixer`
+syntax, where `mixer` is the name of the mixer.
+
+As an example, this will set the music mixer to 75% and the sfx mixer to 50%::
+
+    default preferences.volume.music = 0.75
+    default preferences.volume.sfx = 0.5
+
+
 Mixer Functions
 ---------------
 
@@ -213,27 +258,3 @@ See :ref:`volume` for more details about mixers.
 .. function:: preferences.get_mute(mixer)
 
     Gets the mute setting for `mixer`.
-
-
-Audio Channel Defaults
------------------------
-
-These config variables set the default volumes on various audio mixers.
-
-.. var:: config.default_music_volume = 1.0
-
-    The default volume of the music mixer, which is used for the music and
-    movie channels. This should be a number between 0.0 and 1.0,
-    with 1.0 being full volume.
-
-.. var:: config.default_sfx_volume = 1.0
-
-    The default volume of the sfx mixer, which is used for the sound and
-    audio channels. This should be a number between 0.0 and 1.0,
-    with 1.0 being full volume.
-
-.. var:: config.default_voice_volume = 1.0
-
-    The default volume of the voice mixer, which is used for the voice
-    channel (and hence the voice statement, auto-voice, etc.).
-    This should be a number between 0.0 and 1.0, with 1.0 being full volume.

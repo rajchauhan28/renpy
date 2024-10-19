@@ -346,15 +346,15 @@ translate japanese strings:
 
     # screens.rpy:752
     old "Unseen Text"
-    new "未読テキストもスキップ"
+    new "未読テキスト"
 
     # screens.rpy:753
     old "After Choices"
-    new "選択肢後もスキップ継続"
+    new "選択肢後"
 
     # screens.rpy:754
     old "Transitions"
-    new "トランジションをスキップ"
+    new "トランジション"
 
     # screens.rpy:756
     old "## Additional vboxes of type \"radio_pref\" or \"check_pref\" can be added here, to add additional creator-defined preferences."
@@ -525,8 +525,8 @@ translate japanese strings:
     new "右クリック"
 
     # screens.rpy:1062
-    old "Mouse Wheel Up\nClick Rollback Side"
-    new "マウスホイール上回転\n画面サイドをタッチ"
+    old "Mouse Wheel Up"
+    new "マウスホイール上回転"
 
     # screens.rpy:1066
     old "Mouse Wheel Down"
@@ -697,14 +697,12 @@ translate japanese strings:
 
     # gui/game/screens.rpy:1049
     old "Opens the accessibility menu."
-    new "アクセス性メニューを開きます。"
+    new "アクセシビリティーメニューを開きます。"
 
     # gui/game/screens.rpy:1307
     old "## Displays the menu, if given. The menu may be displayed incorrectly if config.narrator_menu is set to True."
     new "## 指定されれば選択肢を表示します。config.narrator_menuがTrueだと、メニューは正常に表示されないでしょう。"
 
-
-translate japanese strings:
 
     # gui/game/screens.rpy:676
     old "Upload Sync"
@@ -725,3 +723,8 @@ translate japanese strings:
     # gui/game/screens.rpy:1417
     old "## https://www.renpy.org/doc/html/bubble.html#bubble-screen"
     new "## https://www.renpy.org/doc/html/bubble.html#bubble-screen"
+
+    # gui/game/screens.rpy:1098
+    old "Start, Guide, B/Right Button"
+    new "スタート、ガイド、 B / Right ボタン"
+

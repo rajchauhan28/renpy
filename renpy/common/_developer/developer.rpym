@@ -1,4 +1,4 @@
-﻿# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -26,6 +26,7 @@
 
 screen _developer:
 
+    layer config.interface_layer
     zorder 1051
     modal True
 
@@ -65,10 +66,24 @@ screen _developer:
                 textbutton _("Image Attributes"):
                     action ui.callsinnewcontext("_image_attributes")
 
+                if not renpy.get_screen("_translation_info"):
+                    textbutton _("Show Translation Info"):
+                        action Show("_translation_info")
+                else:
+                    textbutton _("Hide Translation Info"):
+                        action Hide("_translation_info")
+
                 if bubble.active:
 
                     textbutton _("Speech Bubble Editor (Shift+B)"):
                         action [ SetField(bubble.shown, "value", True), Hide("_developer") ]
+
+                if not renpy.get_screen("_filename_and_line"):
+                    textbutton _("Show Filename and Line"):
+                        action Show("_filename_and_line")
+                else:
+                    textbutton _("Hide Filename and Line"):
+                        action Hide("_filename_and_line")
 
         hbox:
             spacing gui._scale(25)
@@ -77,8 +92,11 @@ screen _developer:
                 action Hide("_developer")
                 size_group "developer"
 
+    key "developer" action Hide("_developer")
+
 
 screen _image_attributes():
+    layer config.interface_layer
 
     frame:
         style_prefix ""
@@ -87,18 +105,53 @@ screen _image_attributes():
         has side "c b":
             spacing gui._scale(10)
 
+        viewport:
+            scrollbars "both"
+            child_size (4000, 0)
+            yfill True
+            xfill True
+            mousewheel True
 
-        vbox:
-            label _("Image Attributes")
+            vbox:
+                label _("Image Attributes")
+
+                for l in renpy.display.scenelists.ordered_layers:
+
+                    python:
+
+                        hidden = renpy.get_hidden_tags(l)
+                        showing = renpy.get_showing_tags(l, sort=True)
+                        transforms = renpy.layer_has_transforms(l)
+                        transform_list = [ ]
+
+                        if transforms.at_list:
+                            transform_list.append("show layer")
+                        if transforms.camera:
+                            transform_list.append("camera")
+                        if transforms.config_layer_transforms:
+                            transform_list.append("config.layer_transforms")
 
 
-            for name in renpy.get_hidden_tags():
-                $ attributes = " ".join(renpy.get_attributes(name))
-                text _("[name] [attributes] (hidden)")
+                    if not hidden and not showing:
+                        continue
 
-            for name in renpy.get_showing_tags():
-                $ attributes = " ".join(renpy.get_attributes(name))
-                text _("[name] [attributes]")
+                    if l in renpy.config.context_clear_layers:
+                        continue
+
+                    text _("Layer [l]:")
+
+                    if transform_list:
+                        text _("    (transforms: [', '.join(transform_list)])")
+
+                    for name in hidden:
+                        $ attributes = " ".join(renpy.get_attributes(name, layer=l))
+                        text _("    [name] [attributes] (hidden)")
+
+                    for name in showing:
+                        $ attributes = " ".join(renpy.get_attributes(name, layer=l))
+                        text _("    [name] [attributes]")
+
+                    text " "
 
         hbox:
             spacing gui._scale(25)
@@ -119,9 +172,10 @@ label _image_attributes:
 
 
 screen _variable_viewer(title, all_entries, deleted_entries):
-
+    layer config.interface_layer
     zorder 1010
     modal True
+
     default show_deleted = True
     python:
         if show_deleted:
@@ -245,11 +299,6 @@ label _persistent_viewer:
 
 
 # Not used any more, but may be in save files.
-init -1050 python:
-    config.missing_background = "black"
-
-
-# Not used any more, but may be in save files.
 screen _missing_images:
     pass
 
@@ -344,6 +393,7 @@ init python:
 
 
 screen _image_location_picker_image(image_name):
+    layer config.interface_layer
 
     default ilpd = __ImageLocationPickerData()
 
@@ -373,6 +423,7 @@ screen _image_location_picker_image(image_name):
 
 
 screen _image_location_picker(image_files):
+    layer config.interface_layer
 
     default filter = ""
 
@@ -463,10 +514,7 @@ label _filename_list:
 
                 for fn in files:
                     fn = os.path.join(dirname, fn)
-                    if PY2:
-                        fn = fn.encode("utf-8", "replace")
                     print(fn, file=f)
-                    print(fn)
 
         renpy.launch_editor([ FILES_TXT ], transient=1)
 
@@ -474,6 +522,7 @@ label _filename_list:
 
 
 screen _image_load_log():
+    layer config.interface_layer
     zorder 1500
 
     default show_help = True
@@ -532,9 +581,58 @@ screen _image_load_log():
     timer 10.0 action SetScreenVariable("show_help", False)
 
 
+# Removed, could be in save files.
+screen _translation_identifier():
+    pass
+
+
+screen _filename_and_line():
+    layer config.interface_layer
+    zorder 1500
+    style_prefix ""
+
+    # Should help be shown?
+    default help = True
+
+    # The filename and line to show.
+    $ filename, line = renpy.get_filename_line()
+
+    timer 3 action SetScreenVariable("help", False)
+
+    drag:
+        draggable True
+        focus_mask None
+        xpos 0
+        ypos 0
+
+        frame:
+            style "empty"
+            background "#0004"
+            xpadding 5
+            ypadding 5
+            xminimum 200
+
+            has vbox
+
+            textbutton "[filename]:[line]":
+                padding (0, 0)
+                text_color "#fff"
+                text_hover_color "#bdf"
+                text_size 14
+
+                action EditFile(filename, line)
+
+            if help:
+                null height 10
+
+                text _("Click to open in editor."):
+                    size 14
+                    color "#fff"
+
+
 init 1000 python hide:
     if config.transparent_tile:
-        tile = im.Tile("_transparent_tile.png", (config.screen_width, config.screen_height))
+        tile = Tile("_transparent_tile.png")
         config.underlay.append(tile)
         renpy.start_predict(tile)
 

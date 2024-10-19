@@ -1,4 +1,4 @@
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -27,7 +27,7 @@ from __future__ import division, absolute_import, with_statement, print_function
 from renpy.compat import PY2, basestring, bchr, bord, chr, open, pystr, range, round, str, tobytes, unicode # *
 
 from typing import Optional, Any
-
+import contextlib
 
 # Import the python ast module, not ours.
 import ast
@@ -35,6 +35,7 @@ import ast
 # Import the future module itself.
 import __future__
 
+import collections
 import marshal
 import random
 import weakref
@@ -45,6 +46,7 @@ import io
 import types
 import copyreg
 import functools
+import warnings
 
 import renpy
 
@@ -142,7 +144,7 @@ class StoreDict(dict):
 
         self.old = DictItems(self)
 
-    def get_changes(self, cycle):
+    def get_changes(self, cycle, previous):
         """
         For every key that has changed since begin() was called, returns a
         dictionary mapping the key to its value when begin was called, or
@@ -154,6 +156,11 @@ class StoreDict(dict):
         `cycle`
             If true, this cycles the old changes to the new changes. If
             False, does not.
+
+        `previous`
+            The result of a call to this from a previous cycle. The result
+            from a previous run take precedence over the current run. None
+            if this is the first run.
         """
 
         if self.get("_constant", False):
@@ -162,11 +169,14 @@ class StoreDict(dict):
         new = DictItems(self)
         rv = find_changes(self.old, new, deleted)
 
+        if rv is None:
+            return None
+
         if cycle:
             self.old = new
 
-        if rv is None:
-            return None
+        if previous is not None:
+            rv.update(previous)
 
         delta_ebc = set()
 
@@ -205,6 +215,9 @@ def create_store(name):
     """
     Creates the store with `name`.
     """
+
+    if name == "store.store":
+        raise NameError('Namespaces may not begin with "store".')
 
     parent, _, var = name.rpartition('.')
 
@@ -338,13 +351,6 @@ def reset_store_changes(name):
 # Code that replaces literals will calls to magic constructors.
 
 
-def b(s):
-    if PY2:
-        return s.encode("utf-8")
-    else:
-        return s
-
-
 class LoadedVariables(ast.NodeVisitor):
     """
     This is used to implement find_loaded_variables.
@@ -355,15 +361,21 @@ class LoadedVariables(ast.NodeVisitor):
             self.loaded.add(node.id)
         elif isinstance(node.ctx, ast.Store):
             self.stored.add(node.id)
-        elif PY2 and isinstance(node.ctx, ast.Param):
-            # there's no guarantee that ast.Param will keep existing in future versions of python3
-            # it's only present in asts made in py2
-            self.stored.add(node.id)
 
-    if not PY2:
-        # we could remove this if, but the method wouldn't be called in py2 anyway
-        def visit_arg(self, node):
-            self.stored.add(node.arg)
+    def visit_MatchMapping(self, node):
+        if node.rest:
+            self.stored.add(node.rest)
+
+    def visit_MatchStar(self, node):
+        if node.name is not None:
+            self.stored.add(node.name)
+
+    def visit_MatchAs(self, node):
+        if node.name is not None:
+            self.stored.add(node.name)
+
+    def visit_arg(self, node):
+        self.stored.add(node.arg)
 
     def find(self, node):
         self.loaded = set()
@@ -431,6 +443,34 @@ class WrapFormattedValue(ast.NodeTransformer):
 wrap_formatted_value = WrapFormattedValue().visit
 
 
+class FindStarredMatchPatterns(ast.NodeVisitor):
+    """
+    Given a match patten, return a list of (name, type) tuples, where type is "dict" or "list".
+    """
+
+    def __init__(self):
+        self.vars = [ ]
+
+    def visit_MatchStar(self, node: ast.MatchStar) -> Any:
+        self.generic_visit(node)
+        if node.name is not None:
+            self.vars.append((node.name, "list"))
+
+    def visit_MatchMapping(self, node: ast.MatchMapping) -> Any:
+        self.generic_visit(node)
+        if node.rest is not None:
+            self.vars.append((node.rest, "dict"))
+
+def find_starred_match_patterns(node):
+    """
+    Given a match pattern, return a list of (name, type) tuples, where type is "dict" or "list".
+    """
+
+    visitor = FindStarredMatchPatterns()
+    visitor.visit(node)
+    return visitor.vars
+
+
 class WrapNode(ast.NodeTransformer):
 
 
@@ -449,60 +489,33 @@ class WrapNode(ast.NodeTransformer):
         a larger scope, no cell is generated.
         """
 
-        node = self.generic_visit(node)
-
         variables = list(sorted(find_loaded_variables(node)))
+
+        node = self.generic_visit(node)
 
         lambda_args = [ ]
         call_args =[ ]
 
         for var in variables:
-            if PY2:
-                lambda_args.append(ast.Name(id=var, ctx=ast.Param()))
-            else:
-                lambda_args.append(ast.arg(arg=var))
-
+            lambda_args.append(ast.arg(arg=var))
             call_args.append(ast.Name(id=var, ctx=ast.Load()))
 
-        if PY2:
-
-            return ast.Call(
-                func=ast.Lambda(
-                    args=ast.arguments(
-                        args=lambda_args,
-                        vararg=None,
-                        kwarg=None,
-                        defaults=[]
-                    ),
-                    body=node,
+        return ast.Call(
+            func=ast.Lambda(
+                args=ast.arguments(
+                    posonlyargs=[ ],
+                    args=lambda_args,
+                    kwonlyargs=[ ],
+                    kw_defaults=[ ],
+                    defaults=[ ],
                 ),
-                args=call_args,
-                keywords=[ ],
-                starargs=None,
-                kwargs=None,
-            )
-
-        else:
-
-            return ast.Call(
-                func=ast.Lambda(
-                    args=ast.arguments(
-                        posonlyargs=[ ],
-                        args=lambda_args,
-                        kwonlyargs=[ ],
-                        kw_defaults=[ ],
-                        defaults=[ ],
-                    ),
-                    body=node,
-                ),
-                args=call_args,
-                keywords=[ ],
-            )
+                body=node,
+            ),
+            args=call_args,
+            keywords=[ ],
+        )
 
     def wrap_starred_assign(self, n, targets):
-
-        if PY2:
-            return n
 
         starred = find_starred_variables(targets)
 
@@ -515,15 +528,13 @@ class WrapNode(ast.NodeTransformer):
 
             call = ast.Call(
                 func=ast.Name(
-                    id=b("__renpy__list__"),
+                    id="__renpy__list__",
                     ctx=ast.Load()
                     ),
                 args=[
                     ast.Name(id=var, ctx=ast.Load())
                 ],
-                keywords=[ ],
-                starargs=None,
-                kwargs=None)
+                keywords=[ ])
 
             assign = ast.Assign(
                 targets=[ ast.Name(id=var, ctx=ast.Store()) ],
@@ -541,9 +552,6 @@ class WrapNode(ast.NodeTransformer):
 
     def wrap_starred_for(self, node):
 
-        if PY2:
-            return node
-
         starred = find_starred_variables([ node.target ])
 
         if not starred:
@@ -553,15 +561,13 @@ class WrapNode(ast.NodeTransformer):
 
             call = ast.Call(
                 func=ast.Name(
-                    id=b("__renpy__list__"),
+                    id="__renpy__list__",
                     ctx=ast.Load()
                     ),
                 args=[
                     ast.Name(id=var, ctx=ast.Load())
                 ],
-                keywords=[ ],
-                starargs=None,
-                kwargs=None)
+                keywords=[ ])
 
             assign = ast.Assign(
                 targets=[ ast.Name(id=var, ctx=ast.Store()) ],
@@ -574,9 +580,6 @@ class WrapNode(ast.NodeTransformer):
 
 
     def wrap_starred_with(self, node):
-
-        if PY2:
-            return node
 
         optional_vars = [ ]
 
@@ -596,15 +599,13 @@ class WrapNode(ast.NodeTransformer):
 
             call = ast.Call(
                 func=ast.Name(
-                    id=b("__renpy__list__"),
+                    id="__renpy__list__",
                     ctx=ast.Load()
                     ),
                 args=[
                     ast.Name(id=var, ctx=ast.Load())
                 ],
-                keywords=[ ],
-                starargs=None,
-                kwargs=None)
+                keywords=[ ])
 
             assign = ast.Assign(
                 targets=[ ast.Name(id=var, ctx=ast.Store()) ],
@@ -612,6 +613,52 @@ class WrapNode(ast.NodeTransformer):
             )
 
             node.body.insert(0, assign)
+
+        return node
+
+    def wrap_match_case(self, node):
+
+        starred = find_starred_match_patterns(node.pattern)
+        if not starred:
+            return node
+
+        for var, kind in reversed(starred):
+
+            if kind == "list":
+                call = ast.Call(
+                    func=ast.Name(
+                        id="__renpy__list__",
+                        ctx=ast.Load()
+                        ),
+                    args=[
+                        ast.Name(id=var, ctx=ast.Load())
+                    ],
+                    keywords=[ ])
+
+                assign = ast.Assign(
+                    targets=[ ast.Name(id=var, ctx=ast.Store()) ],
+                    value=call,
+                )
+
+                node.body.insert(0, assign)
+
+            elif kind == "dict":
+                call = ast.Call(
+                    func=ast.Name(
+                        id="__renpy__dict__",
+                        ctx=ast.Load()
+                        ),
+                    args=[
+                        ast.Name(id=var, ctx=ast.Load())
+                    ],
+                    keywords=[ ])
+
+                assign = ast.Assign(
+                    targets=[ ast.Name(id=var, ctx=ast.Store()) ],
+                    value=call,
+                )
+
+                node.body.insert(0, assign)
 
         return node
 
@@ -643,7 +690,7 @@ class WrapNode(ast.NodeTransformer):
         n = self.generic_visit(n)
 
         if not n.bases: # type: ignore
-            n.bases.append(ast.Name(id=b("object"), ctx=ast.Load())) # type: ignore
+            n.bases.append(ast.Name(id="object", ctx=ast.Load())) # type: ignore
 
         return n
 
@@ -653,79 +700,74 @@ class WrapNode(ast.NodeTransformer):
     def visit_SetComp(self, n):
         return ast.Call(
             func=ast.Name(
-                id=b("__renpy__set__"),
+                id="__renpy__set__",
                 ctx=ast.Load()
                 ),
             args=[ self.wrap_generator(n) ],
-            keywords=[ ],
-            starargs=None,
-            kwargs=None)
+            keywords=[ ])
 
     def visit_Set(self, n):
 
         return ast.Call(
             func=ast.Name(
-                id=b("__renpy__set__"),
+                id="__renpy__set__",
                 ctx=ast.Load()
                 ),
             args=[ self.generic_visit(n) ],
-            keywords=[ ],
-            starargs=None,
-            kwargs=None)
+            keywords=[ ])
 
     def visit_ListComp(self, n):
 
         return ast.Call(
             func=ast.Name(
-                id=b("__renpy__list__"),
+                id="__renpy__list__",
                 ctx=ast.Load()
                 ),
             args=[ self.wrap_generator(n) ],
-            keywords=[ ],
-            starargs=None,
-            kwargs=None)
+            keywords=[ ])
 
     def visit_List(self, n):
+
         if not isinstance(n.ctx, ast.Load):
             return self.generic_visit(n)
 
         return ast.Call(
             func=ast.Name(
-                id=b("__renpy__list__"),
+                id="__renpy__list__",
                 ctx=ast.Load()
                 ),
             args=[ self.generic_visit(n) ],
-            keywords=[ ],
-            starargs=None,
-            kwargs=None)
+            keywords=[ ])
 
     def visit_DictComp(self, n):
         return ast.Call(
             func=ast.Name(
-                id=b("__renpy__dict__"),
+                id="__renpy__dict__",
                 ctx=ast.Load()
                 ),
             args=[ self.wrap_generator(n) ],
-            keywords=[ ],
-            starargs=None,
-            kwargs=None)
+            keywords=[ ])
 
     def visit_Dict(self, n):
 
         return ast.Call(
             func=ast.Name(
-                id=b("__renpy__dict__"),
+                id="__renpy__dict__",
                 ctx=ast.Load()
                 ),
             args=[ self.generic_visit(n) ],
-            keywords=[ ],
-            starargs=None,
-            kwargs=None)
-
+            keywords=[ ])
 
     def visit_FormattedValue(self, n):
         n = wrap_formatted_value(n)
         return self.generic_visit(n)
+
+    def visit_Match(self, node : ast.Match) -> Any:
+        n : ast.Match = self.generic_visit(node) # type: ignore
+        n.cases = [ self.wrap_match_case(i) for i in n.cases ]
+        return n
+
+
 
 wrap_node = WrapNode()
 
@@ -784,6 +826,34 @@ def escape_unicode(s):
 
     return s
 
+# A list of warnings that were issued during compilation.
+compile_warnings = [ ]
+
+@contextlib.contextmanager
+def save_warnings():
+    """
+    A context manager that captures warnings issued during compilation.
+    """
+
+    pending_warnings = [ ]
+
+    def showwarning(message, category, filename, lineno, file=None, line=None):
+        pending_warnings.append((filename, lineno, warnings.formatwarning(message, category, filename, lineno, line)))
+
+    old = warnings.showwarning
+
+    try:
+
+        warnings.showwarning = showwarning
+
+        yield
+
+        compile_warnings.extend(pending_warnings)
+
+    finally:
+
+        warnings.showwarning = old
+
 
 # Flags used by py_compile.
 old_compile_flags = (__future__.nested_scopes.compiler_flag
@@ -796,15 +866,8 @@ new_compile_flags = (old_compile_flags
                       | __future__.unicode_literals.compiler_flag
                       )
 
-py3_compile_flags = (new_compile_flags |
-                      __future__.division.compiler_flag)
-
-if not PY2:
-    py3_compile_flags |= __future__.annotations.compiler_flag
-
-# The set of files that should be compiled under Python 2 with Python 3
-# semantics.
-py3_files = set()
+# A set of __future__ flag overrides for each file.
+file_compiler_flags = collections.defaultdict(int)
 
 # A cache for the results of py_compile.
 py_compile_cache = { }
@@ -933,6 +996,7 @@ def quote_eval(s):
 # The filename being compiled.
 compile_filename = ""
 
+
 def py_compile(source, mode, filename='<none>', lineno=1, ast_node=False, cache=True, py=None):
     """
     Compiles the given source code using the supplied codegenerator.
@@ -960,6 +1024,7 @@ def py_compile(source, mode, filename='<none>', lineno=1, ast_node=False, cache=
     """
 
     global compile_filename
+    global compile_warnings
 
     if ast_node:
         cache = False
@@ -975,13 +1040,11 @@ def py_compile(source, mode, filename='<none>', lineno=1, ast_node=False, cache=
             py = source.py
 
     if py is None:
-        if PY2:
-            py = 2
-        else:
-            py = 3
+        py = 3
 
     if cache:
         key = (lineno, filename, str(source), mode, renpy.script.MAGIC)
+        warnings_key = ("warnings", key)
 
         rv = py_compile_cache.get(key, None)
         if rv is not None:
@@ -990,17 +1053,23 @@ def py_compile(source, mode, filename='<none>', lineno=1, ast_node=False, cache=
         rv = old_py_compile_cache.get(key, None)
         if rv is not None:
             py_compile_cache[key] = rv
+
             return rv
 
         bytecode = renpy.game.script.bytecode_oldcache.get(key, None)
         if bytecode is not None:
 
             renpy.game.script.bytecode_newcache[key] = bytecode
+
+            if warnings_key in renpy.game.script.bytecode_oldcache:
+                renpy.game.script.bytecode_newcache[warnings_key] = renpy.game.script.bytecode_oldcache[warnings_key]
+
             rv = marshal.loads(bytecode)
             py_compile_cache[key] = rv
             return rv
 
     else:
+        warnings_key = None
         key = None
 
     source = str(source)
@@ -1019,29 +1088,20 @@ def py_compile(source, mode, filename='<none>', lineno=1, ast_node=False, cache=
         else:
             py_mode = mode
 
-        if (not PY2) or (filename in py3_files):
+        flags = file_compiler_flags.get(filename, 0)
+        flags |= new_compile_flags
 
-            flags = py3_compile_flags
+        try:
+            with save_warnings():
+                tree = compile(source, filename, py_mode, ast.PyCF_ONLY_AST | flags, 1)
+        except SyntaxError as orig_e:
 
             try:
-                tree = compile(source, filename, py_mode, ast.PyCF_ONLY_AST | flags, 1)
-            except SyntaxError as orig_e:
-
-                try:
-                    fixed_source = renpy.compat.fixes.fix_tokens(source)
+                fixed_source = renpy.compat.fixes.fix_tokens(source)
+                with save_warnings():
                     tree = compile(fixed_source, filename, py_mode, ast.PyCF_ONLY_AST | flags, 1)
-                except Exception:
-                    raise orig_e
-
-        else:
-
-            try:
-                flags = new_compile_flags
-                tree = compile(source, filename, py_mode, ast.PyCF_ONLY_AST | flags, 1)
             except Exception:
-                flags = old_compile_flags
-                source = escape_unicode(source)
-                tree = compile(source, filename, py_mode, ast.PyCF_ONLY_AST | flags, 1)
+                raise orig_e
 
         tree = wrap_node.visit(tree)
 
@@ -1057,19 +1117,26 @@ def py_compile(source, mode, filename='<none>', lineno=1, ast_node=False, cache=
             return tree.body
 
         try:
-            rv = compile(tree, filename, py_mode, flags, 1)
+            with save_warnings():
+                rv = compile(tree, filename, py_mode, flags, 1)
         except SyntaxError as orig_e:
             try:
                 tree = renpy.compat.fixes.fix_ast(tree)
                 fix_locations(tree, 1, 0)
-                rv = compile(tree, filename, py_mode, flags, 1)
+                with save_warnings():
+                    rv = compile(tree, filename, py_mode, flags, 1)
             except Exception:
                 raise orig_e
 
-
         if cache:
             py_compile_cache[key] = rv
+
             renpy.game.script.bytecode_newcache[key] = marshal.dumps(rv)
+
+            if compile_warnings:
+                renpy.game.script.bytecode_newcache[warnings_key] = compile_warnings
+                compile_warnings = [ ]
+
             renpy.game.script.bytecode_dirty = True
 
         return rv
@@ -1196,20 +1263,6 @@ class StoreProxy(object):
 def method_unpickle(obj, name):
     return getattr(obj, name)
 
-if PY2:
-
-    # Code for pickling bound methods.
-    def method_pickle(method):
-        name = method.im_func.__name__
-
-        obj = method.im_self
-
-        if obj is None:
-            obj = method.im_class
-
-        return method_unpickle, (obj, name)
-
-    copyreg.pickle(types.MethodType, method_pickle)
 
 # Code for pickling modules.
 
@@ -1226,3 +1279,11 @@ def module_unpickle(name):
 
 
 copyreg.pickle(types.ModuleType, module_pickle)
+
+# Allow weakrefs to be pickled, with the reference being broken during
+# unpickling.
+
+def construct_None(*args):
+    return None
+
+copyreg.pickle(weakref.ReferenceType, lambda r : (construct_None, tuple()))

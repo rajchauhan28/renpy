@@ -711,7 +711,7 @@ The ``confirm`` screen is used to ask yes/no choices of the
 user. It takes the following parameters:
 
 `message`
-    The message to display to the user. This is one of:
+    The message to display to the user. At least the following messages are used by Ren'Py:
 
     * gui.ARE_YOU_SURE - "Are you sure?" This should be the default if the message is unknown.
     * gui.DELETE_SAVE - "Are you sure you want to delete this save?"
@@ -719,11 +719,14 @@ user. It takes the following parameters:
     * gui.LOADING - "Loading will lose unsaved progress.\nAre you sure you want to do this?"
     * gui.QUIT - "Are you sure you want to quit?"
     * gui.MAIN_MENU - "Are you sure you want to return to the main\nmenu? This will lose unsaved progress."
+    * gui.CONTINUE - "Are you sure you want to continue where you left off?"
     * gui.END_REPLAY - "Are you sure you want to end the replay?"
     * gui.SLOW_SKIP - "Are you sure you want to begin skipping?"
     * gui.FAST_SKIP_SEEN - "Are you sure you want to skip to the next choice?"
     * gui.FAST_SKIP_UNSEEN - "Are you sure you want to skip unseen dialogue to the next choice?"
-
+    * UNKNOWN_TOKEN - This save was created on a different device. Maliciously constructed save files can harm your computer. Do you trust this save's
+      creator and everyone who could have changed the file?
+    * TRUST_TOKEN - Do you trust the device the save was created on? You should only choose yes if you are the device's sole user.
 
     The values of the variables are strings, which means they can be
     displayed using a text displayable.
@@ -737,7 +740,7 @@ user. It takes the following parameters:
 Until Ren'Py 6.99.10, this screen was known as the ``yesno_prompt`` screen.
 If no ``confirm`` screen is present, ``yesno_prompt`` is used instead.
 
-This screen will also be called by the :func:`layout.yesno_screen` and the :func:`Confirm` action.
+This screen will also be called by the :func:`renpy.confirm` function and the :func:`Confirm` action.
 
 ::
 

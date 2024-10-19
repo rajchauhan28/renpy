@@ -8,14 +8,14 @@ class Editor(renpy.editor.Editor):
 
     has_projects = True
 
+    system = __file__.endswith(" (System).edit.py")
+
     def get_code(self):
         """
         Returns the path to the code executable.
         """
 
-        system = __file__.endswith(" (System).edit.py")
-
-        if system:
+        if self.system:
 
             if "RENPY_VSCODE" in os.environ:
                 return os.environ["RENPY_VSCODE"]
@@ -42,7 +42,7 @@ class Editor(renpy.editor.Editor):
                 elif renpy.arch == "armv7l":
                     arch = "arm"
                 else:
-                    arch = "x86_64"
+                    arch = "x64"
 
                 code = os.path.join(RENPY_VSCODE, "VSCode-linux-" + arch, "bin", "code")
             else:
@@ -65,7 +65,11 @@ class Editor(renpy.editor.Editor):
         self.args.reverse()
 
         code = self.get_code()
-        args = [ code, "-g" ] + self.args
+        if self.system or not renpy.linux:
+            args = [ code, "-g" ] + self.args
+        else:
+            args = [ code, "--no-sandbox", "-g" ] + self.args
+
         args = [ renpy.exports.fsencode(i) for i in args ]
 
         if renpy.windows:

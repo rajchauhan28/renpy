@@ -1,4 +1,4 @@
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -333,13 +333,15 @@ def At(d, *args):
             repeat
 
         image birds = At("birds.png", birds_transform)
-        """
+    """
 
     rv = renpy.easy.displayable(d)
 
     for i in args:
 
         if isinstance(i, renpy.display.motion.Transform):
+            # fails to set the child if the transform has a **kwargs parameter and no child parameter
+            # intended corner-case
             rv = i(child=rv)
         else:
             rv = i(rv)
@@ -417,7 +419,7 @@ def predict_say(who, what):
 
 def say(who, what, interact=True, *args, **kwargs):
     who = Character(who, kind=adv)
-    who(what, interact=interact, *args, **kwargs)
+    who(what, *args, interact=interact, **kwargs)
 
 
 # Used by renpy.reshow_say and extend.

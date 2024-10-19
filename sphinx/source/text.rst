@@ -84,24 +84,24 @@ displayed. For example, if the player's name is stored in the
 
     g "Welcome to the Nekomimi Institute, [playername]!"
 
-Ren'Py will interpolate variables found in the global store. When
-using a text widget in a screen, Ren'Py will also interpolate screen
-local variables. (This can be overridden by supplying an explicit
-scope argument to the Text displayable.)
+Ren'Py will search for variables in the following order:
+
+* When used in a screen, screen-local variables.
+* Variables found in the ``interpolate`` namespace.
+* Variables found in the global namespace.
 
 Ren'Py isn't limited to interpolating simple variables. It can also
-interpolate fields and components of tuples. So it's possible to have::
+interpolate any valid Python expression. So it's possible to have::
 
     g "My first name is [player.names[0]]."
 
 It's possible to apply formatting when displaying numbers. This
 will display a floating point number to two decimal places::
 
-    $ percent = 100.0 * points / max_points
-    g "I like you [percent:.2] percent!"
+    g "I like you [100.0 * points / max_points:.2] percent!"
 
-Ren'Py's string interpolation is taken from the :pep:`3101` string
-formatting syntax. Ren'Py uses [ to introduce string formatting
+Ren'Py's string formatting is taken from the :pep:`3101` string
+formatting syntax. Ren'Py uses [ to introduce string interpolation
 because { was taken by text tags.
 
 Along with the ``!s`` and ``!r`` conversion flags supported by Python, Ren'Py
@@ -137,7 +137,7 @@ It should be noted that:
 
 - the order in which the flags are given does not change the result : ``!cl``
   will do just the same as ``!lc``.
-- Supplementarly exclamation marks will be ignored, and will not circumvent
+- Supplementary exclamation marks will be ignored, and will not circumvent
   the previous rule : ``!l!c`` will do the same as ``!c!l`` or ``!cl``.
 
 The transformations are done in the following order:
@@ -329,8 +329,8 @@ Tags that apply to all text are:
 .. text-tag:: noalt
 
     The noalt tag prevents text from being spoken by the text-to-speech
-    system. This is often used in conjuction with the alt tag, to provide
-    accessible and visual optiopns  ::
+    system. This is often used in conjunction with the alt tag, to provide
+    accessible and visual options  ::
 
        g "Good to see you! {noalt}<3{/noalt}{alt}heart{/alt}"
 
@@ -367,6 +367,15 @@ Tags that apply to all text are:
    its closing tag. ::
 
        g "It's good {s}to see you{/s}."
+
+.. text-tag:: shader
+
+    The shader tag applies a text shader to a section of text.
+    The argument is the name of the shader to apply. ::
+
+        "This text is {shader=jitter:u__jitter=1.0, 3.0}jittery{/shader}."
+
+    See :doc:`textshaders` for more information.
 
 .. text-tag:: size
 
@@ -511,7 +520,7 @@ Style Text Tags
 Ren'Py supports text tags that access styles. These are text tags
 where the tag name is empty. In this case, the argument
 is taken to be the name of a style. For example, the {=mystyle} tag
-will acces the ``mystyle`` style.
+will access the ``mystyle`` style.
 
 The text between the tag and the corresponding closing tag has the following
 properties set to those defined in the style:
@@ -603,8 +612,8 @@ steps required for your game to support ruby text.
 First, you must set up styles for the ruby text. The following style
 changes are required:
 
-1. The :propref:`line_leading` property must be used to leave enough
-   vertical space for the ruby text.
+1. One of the :propref:`line_leading` or :propref:`ruby_line_leading` properties
+   must be used to leave enough vertical space for the ruby text.
 2. A new named style must be created. The properties of this style,
    such as :propref:`size` should be set in a fashion appropriate
    for ruby text.
@@ -619,13 +628,14 @@ For example::
     style ruby_style is default:
         size 12
         yoffset -20
+        color None # Use the same color as the parent text.
 
     style say_dialogue:
-        line_leading 12
+        ruby_line_leading 12
         ruby_style style.ruby_style
 
     style history_text:
-        line_leading 12
+        ruby_line_leading 12
         ruby_style style.ruby_style
 
 (Use ``style.style_name`` to refer to a style for this purpose.)
@@ -681,8 +691,8 @@ followed by an at-sign and the file name. For example, "0\@font.ttc" is
 the first font in a collection, "1\@font.ttc" the second, and so on.
 
 When looking for a font files, if the file is not found, Ren'Py will search
-in the ``game/fonts`` directory. For example, when looking for test.ttf, Ren'Py
-will first search for ``game/test.ttf``, and then for ``game/fonts/test.ttf``.
+in the :file:`game/fonts` directory. For example, when looking for "test.ttf", Ren'Py
+will first search for :file:`game/test.ttf`, and then for :file:`game/fonts/test.ttf`.
 
 Font Replacement
 ----------------
@@ -760,7 +770,7 @@ points, and the first range to cover a point is used.
 For example::
 
     style default:
-         font FontGroup().add("english.ttf", 0x0020, 0x007f).add("japanese.ttf", 0x0000, 0xffff)
+        font FontGroup().add("english.ttf", 0x0020, 0x007f).add("japanese.ttf", 0x0000, 0xffff)
 
 .. include:: inc/font_group
 
@@ -822,3 +832,64 @@ necessary.
 
 Whenever text is displayed that overflows the available area, Ren'Py
 will log an error to the text_overflow.txt file.
+
+.. _variable-fonts:
+
+Variable Fonts
+==============
+
+Ren'Py has support for OpenType variable fonts. These fonts may support
+multiple axes, such as weight and width, and based on the value of these
+axes, the display of the font can change. Variable fonts may also have
+named instances, which provide different values for the axes. For example,
+the "bold" named instance will likely provide the bold version of a  font,
+while "regular" will be a more normal version.
+
+Variable fonts require the use of the harfbuzz text shaper, controlled by
+the :propref:`shaper` style property. Once this is set, the :propref:`instance`
+property selects a named instance, while the :propref:`axis` property sets
+the value of one or more axes.
+
+These can also be set in the gui system. For example one can use::
+
+    define gui.text_font = "nunito.ttf"
+    define gui.text_instance = "light"
+    define gui.text_axis = {"width" : 125}
+
+Will start with the light instance, and make it wide.
+
+If no instance is given, Ren'Py will default to "regular" for non-bold text,
+and "bold" for bold text.
+
+There are two text tags that support the use of variable fonts.
+
+.. text-tag:: instance
+
+    The instance tag changes the instance that is being used. For example::
+
+        "This is {instance=heavy}heavy{/instance} text."
+
+    When the instance tag is used, the axis properties are overridden.
+
+.. text-tag:: axis
+
+    The axis tag changes the value of one or more axes. For example::
+
+        "This is {axis:width=125}wide{/axis} text."
+
+    The axis tag can be used multiple times, and the values will be combined.
+
+        "This is {axis:width=125}{axis:weight=200}wide and bold{/axis}{/axis} text."
+
+    The value of on the right side of the equals is expected to be a floating
+    point number.
+
+To get the available instances and axes of a font, use the :func:`renpy.variable_font_info`
+function. This function is intended to be called from the console. To access it, hit
+shift+O to open the console, and then type::
+
+    renpy.variable_font_info("nunito.ttf")
+
+This will display information for the nunito.ttf font.
+
+.. include:: inc/variable_fonts

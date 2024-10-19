@@ -1,4 +1,4 @@
-﻿# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -46,7 +46,7 @@ screen front_page:
             right_margin 2
 
             top_padding 20
-            bottom_padding 26
+            bottom_padding 13
 
             side "t c b":
 
@@ -158,12 +158,8 @@ screen front_page_project:
 
                 frame style "l_indent":
                     has vbox
-
-                    textbutton "game" action OpenDirectory(os.path.join(p.path, "game"), absolute=True)
-                    textbutton "base" action OpenDirectory(os.path.join(p.path, "."), absolute=True)
-                    textbutton "images" action OpenDirectory(os.path.join(p.path, "game/images"), absolute=True)
-                    textbutton "audio" action OpenDirectory(os.path.join(p.path, "game/audio"), absolute=True)
-                    textbutton "gui" action OpenDirectory(os.path.join(p.path, "game/gui"), absolute=True)
+                    for button_name, path in p.data["renpy_launcher"]["open_directory"].items():
+                        textbutton button_name action OpenDirectory(os.path.join(p.path, path), absolute=True)
 
             vbox:
                 if persistent.show_edit_funcs:
@@ -173,10 +169,8 @@ screen front_page_project:
                     frame style "l_indent":
                         has vbox
 
-                        textbutton "script.rpy" action editor.Edit("game/script.rpy", check=True)
-                        textbutton "options.rpy" action editor.Edit("game/options.rpy", check=True)
-                        textbutton "gui.rpy" action editor.Edit("game/gui.rpy", check=True)
-                        textbutton "screens.rpy" action editor.Edit("game/screens.rpy", check=True)
+                        for button_name, path in p.data["renpy_launcher"]["edit_file"].items():
+                            textbutton button_name action editor.Edit(path, check=True)
 
                         if editor.CanEditProject():
                             textbutton _("Open project") action editor.EditProject()
@@ -195,7 +189,7 @@ screen front_page_project:
                 has vbox
 
                 textbutton _("Navigate Script") action Jump("navigation")
-                textbutton _("Check Script (Lint)") action Jump("lint")
+                textbutton _("Check Script (Lint)") action Call("lint")
 
                 if project.current.exists("game/gui.rpy"):
                     textbutton _("Change/Update GUI") action Jump("change_gui")
@@ -216,7 +210,7 @@ screen front_page_project:
 
                 textbutton _("Android") action Jump("android")
                 textbutton _("iOS") action Jump("ios")
-                textbutton _("Web") + " " + _("(Beta)") action Jump("web")
+                textbutton _("Web") action Jump("web")
                 textbutton _("Generate Translations") action Jump("translate")
                 textbutton _("Extract Dialogue") action Jump("extract_dialogue")
 
@@ -227,13 +221,12 @@ label start:
     show screen bottom_info
     $ dmgcheck()
 
-    jump expression renpy.session.pop("launcher_start_label", "front_page")
+    jump expression renpy.session.pop("launcher_start_label", "before_front_page")
 
 default persistent.has_chosen_language = False
-
 default persistent.has_update = False
 
-label front_page:
+label before_front_page:
 
     if (not persistent.has_chosen_language) or ("RENPY_CHOOSE_LANGUAGE" in os.environ):
 
@@ -243,6 +236,11 @@ label front_page:
             show screen bottom_info
 
         $ persistent.has_chosen_language = True
+
+    call editor_check
+
+label post_editor_check:
+label front_page:
 
     if persistent.daily_update_check and ((not persistent.last_update_check) or (datetime.date.today() > persistent.last_update_check)):
         python hide:
@@ -259,14 +257,18 @@ label lint:
         interface.processing(_("Checking script for potential problems..."))
         lint_fn = project.current.temp_filename("lint.txt")
 
-        project.current.launch([ 'lint', lint_fn ], wait=True)
+        persistent.lint_options.discard("--orphan-tl") # compat
+        persistent.lint_options.discard("--builtins-parameters") # compat
+        persistent.lint_options.discard("--words-char-count") # compat
+
+        project.current.launch([ 'lint', lint_fn, ] + list(persistent.lint_options), wait=True)
 
         e = renpy.editor.editor
         e.begin(True)
         e.open(lint_fn)
         e.end()
 
-    jump front_page
+    return
 
 label rmpersistent:
 

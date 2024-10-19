@@ -50,7 +50,7 @@ your system. On Ubuntu and Debian, these dependencies can be installed with
 the command::
 
     sudo apt install virtualenvwrapper python3-dev libavcodec-dev libavformat-dev \
-        libswresample-dev libswscale-dev libfreetype6-dev libfribidi-dev libsdl2-dev \
+        libswresample-dev libswscale-dev libharfbuzz-dev libfreetype6-dev libfribidi-dev libsdl2-dev \
         libsdl2-image-dev libsdl2-gfx-dev libsdl2-mixer-dev libsdl2-ttf-dev libjpeg-dev
 
 Ren'Py requires SDL_image 2.6 or greater. If your distribution doesn't include
@@ -71,14 +71,14 @@ To return to this virtualenv later, run::
 
 After activating the virtualenv, install additional dependencies::
 
-    pip install -U cython future six typing pefile requests ecdsa
+    pip install -U "setuptools cython<3.0.0 future six typing pefile requests ecdsa"
 
 Then, install pygame_sdl2 by running the following commands::
 
     git clone https://www.github.com/renpy/pygame_sdl2
     pushd pygame_sdl2
     python setup.py install
-    python setup.py install_headers
+    python install_headers.py $VIRTUAL_ENV
     popd
 
 Next, set RENPY_DEPS_INSTALL To a \:-separated (\;-separated on Windows)

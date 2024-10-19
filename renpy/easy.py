@@ -1,4 +1,4 @@
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -34,10 +34,8 @@ import renpy
 Color = renpy.color.Color
 color = renpy.color.Color
 
-if PY2:
-    from collections import Iterable # type: ignore
-else:
-    from collections.abc import Iterable
+
+from collections.abc import Iterable
 
 
 def lookup_displayable_prefix(d):
@@ -170,6 +168,8 @@ def dynamic_image(d, scope=None, prefix=None, search=None): # type: (Any, dict|N
         if (len(d) == 1) and (renpy.config.missing_image_callback is not None):
             if renpy.config.missing_image_callback(name):
                 return True
+
+        return False
 
     for i in d:
 

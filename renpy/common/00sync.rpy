@@ -1,4 +1,4 @@
-﻿# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -79,9 +79,6 @@ init 1100 python:
     else:
         config.has_sync = None
 
-    if renpy.emscripten and PY2:
-        config.has_sync = None
-
 init -1100 python in _sync:
 
     # Do not participate in saves.
@@ -149,10 +146,7 @@ init -1100 python in _sync:
         for _ in range(10000):
             hashed = hashlib.sha256(hashed).digest()
 
-        if PY2:
-            return hashed.encode("hex")
-        else:
-            return hashed.hex()
+        return hashed.hex()
 
 
     def key_and_hash(sync_id):
@@ -175,140 +169,41 @@ init -1100 python in _sync:
         for _ in range(10000):
             hashed = hashlib.sha256(hashed).digest()
 
-        if PY2:
-            return key, hashed.encode("hex")
-        else:
-            return key, hashed.hex()
+        return key, hashed.hex()
 
-    def requests_error(e):
-        import requests
-
+    def verbose_error(e):
         renpy.display.log.write("Sync error:")
         renpy.display.log.exception()
 
-        if isinstance(e, requests.exceptions.ConnectionError):
+        if renpy.emscripten:
+           return e.args[0]
+
+        import requests
+
+        if isinstance(e.original_exception, requests.exceptions.ConnectionError):
             return _("Could not connect to the Ren'Py Sync server.")
-        elif isinstance(e, requests.exceptions.Timeout):
+        elif isinstance(e.original_exception, requests.exceptions.Timeout):
             return _("The Ren'Py Sync server timed out.")
         else:
             return _("An unknown error occurred while connecting to the Ren'Py Sync server.")
 
-    if renpy.emscripten:
+    def upload_content(content, url):
+        try:
+            renpy.fetch(url, method="PUT", data=content, timeout=15)
+        except renpy.FetchError as e:
+            return verbose_error(e)
 
-        def upload_content(content, url):
-            """
-            Uploads content to the sync server, using the given half-hash.
+        return None
 
-            Returns None on success, or an error message on failure.
-            """
+    def download_content(url):
+        try:
+            return False, renpy.fetch(url, timeout=15)
+        except renpy.FetchError as e:
 
-            import emscripten
-            import time
-            import os
-
-            with open("/sync.data", "wb") as f:
-                f.write(content)
-
-            fetch_id = emscripten.run_script_int(
-                """fetchFile("PUT", "{url}", "/sync.data", null)""".format(url=url))
-
-            status = "PENDING"
-            message = "Pending."
-
-            start = time.time()
-            while start - time.time() < 15:
-                renpy.pause(0)
-
-                result = emscripten.run_script_string("""fetchFileResult({})""".format(fetch_id))
-                status, _ignored, message = result.partition(" ")
-
-                if status != "PENDING":
-                    break
-
-            os.unlink("/sync.data")
-
-            if status != "OK":
-                return message
-            else:
-                return None
-
-
-        def download_content(url):
-            import emscripten
-            import time
-            import os
-
-            fetch_id = emscripten.run_script_int(
-                """fetchFile("GET", "{url}", null, "/sync.data")""".format(url=url))
-
-            status = "PENDING"
-            message = "Pending."
-
-            start = time.time()
-            while start - time.time() < 15:
-                renpy.pause(0)
-
-                result = emscripten.run_script_string("""fetchFileResult({})""".format(fetch_id))
-                status, _ignored, message = result.partition(" ")
-
-                if status != "PENDING":
-                    break
-
-            if status == "OK":
-                with open("/sync.data", "rb") as f:
-                    data = f.read()
-
-                os.unlink("/sync.data")
-
-                return False, data
-
-            else:
-                if "404" in message:
-                    return True, _("The Ren'Py Sync server does not have a copy of this sync. The sync ID may be invalid, or it may have timed out.")
-                else:
-                    return True, message
-
-    else:
-
-        def upload_content(content, url):
-            """
-            Uploads content to the sync server, using the given half-hash.
-
-            Returns None on success, or an error message on failure.
-            """
-
-            import requests
-
-            try:
-                r = requests.put(url, data = content, timeout=15)
-            except Exception as e:
-                return requests_error(e)
-
-            if r.status_code != 200:
-                return r.text
-
-            return None
-
-        def download_content(url):
-            """
-            Downloads content from the sync server, using the given half-hash.
-
-            Returns True and an error message on errro, and False and the content on success.
-            """
-
-            import requests
-
-            try:
-                r = requests.get(url, timeout=15)
-            except Exception as e:
-                return True, requests_error(e)
-
-            if r.status_code == 404:
+            if e.status_code == 404:
                 return True, _("The Ren'Py Sync server does not have a copy of this sync. The sync ID may be invalid, or it may have timed out.")
-            elif r.status_code != 200:
-                return True, r.text
 
-            return False, r.content
+            return True, verbose_error(e)
 
     def report_error(message):
         renpy.call_screen("sync_error", message)
@@ -346,7 +241,7 @@ init -1100 python in _sync:
             if i.startswith("quick-") and i != "quick-1":
                 continue
 
-            files.append((location.mtime(i), i + "-LT1.save"))
+            files.append((location.mtime(i), i + renpy.savegame_suffix))
 
         files.sort(reverse=True)
 
@@ -356,8 +251,6 @@ init -1100 python in _sync:
 
             sd = renpy.config.save_directory
             if sd:
-                if PY2:
-                    sd = sd.encode("utf-8")
                 zf.writestr("save_directory", sd)
 
             persistent = location.path("persistent")[1]
@@ -505,20 +398,20 @@ init -1100 python in _sync:
                 os.rename(nfn, fn)
 
         renpy.loadsave.location.scan()
-
-        if renpy.emscripten:
-            import emscripten
-            emscripten.syncfs()
+        renpy.savelocation.syncfs()
 
         return True
 
 init -1100:
 
     screen sync_confirm():
+        style_prefix "sync"
         modal True
+        layer config.interface_layer
         zorder 100
 
-        add "gui/overlay/confirm.png"
+        frame:
+            style "sync_overlay"
 
         frame:
             xalign .5
@@ -544,10 +437,13 @@ init -1100:
         key "game_menu" action Return(False)
 
     screen sync_prompt(prompt):
+        style_prefix "sync"
         modal True
+        layer config.interface_layer
         zorder 100
 
-        add "gui/overlay/confirm.png"
+        frame:
+            style "sync_overlay"
 
         frame:
             xalign .5
@@ -582,10 +478,13 @@ init -1100:
 
 
     screen sync_success(sync_id):
+        style_prefix "sync"
         modal True
+        layer config.interface_layer
         zorder 100
 
-        add "gui/overlay/confirm.png"
+        frame:
+            style "sync_overlay"
 
         frame:
             xalign .5
@@ -617,10 +516,13 @@ init -1100:
         key "game_menu" action Return(False)
 
     screen sync_error(message):
+        style_prefix "sync"
         modal True
+        layer config.interface_layer
         zorder 100
 
-        add "gui/overlay/confirm.png"
+        frame:
+            style "sync_overlay"
 
         frame:
             xalign .5
@@ -643,3 +545,13 @@ init -1100:
 
         ## Right-click and escape answer "no".
         key "game_menu" action Return(False)
+
+
+    if renpy.loadable("gui/overlay/confirm.png"):
+        style sync_overlay is empty:
+            background "gui/overlay/confirm.png"
+    else:
+        style sync_overlay is empty:
+            background "#000a"
+
+    style sync_text is gui_text

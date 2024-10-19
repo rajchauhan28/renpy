@@ -447,8 +447,7 @@ translate russian strings:
 
     # screens.rpy:1004
     old "Enter"
-    # Automatic translation.
-    new "Войти"
+    new "Enter"
 
     # screens.rpy:1005
     old "Advances dialogue and activates the interface."
@@ -496,8 +495,7 @@ translate russian strings:
 
     # screens.rpy:1028
     old "Page Up"
-    # Automatic translation.
-    new "Страница вверху"
+    new "Page Up"
 
     # screens.rpy:1029
     old "Rolls back to earlier dialogue."
@@ -505,8 +503,7 @@ translate russian strings:
 
     # screens.rpy:1032
     old "Page Down"
-    # Automatic translation.
-    new "Страница вниз"
+    new "Page Down"
 
     # screens.rpy:1033
     old "Rolls forward to later dialogue."
@@ -537,8 +534,8 @@ translate russian strings:
     new "Правый клик"
 
     # screens.rpy:1063
-    old "Mouse Wheel Up\nClick Rollback Side"
-    new "Колёсико вверх\nКлик на сторону отката"
+    old "Mouse Wheel Up"
+    new "Колёсико вверх"
 
     # screens.rpy:1067
     old "Mouse Wheel Down"
@@ -681,16 +678,12 @@ translate russian strings:
     old "Opens the accessibility menu."
     new "Открывает меню специальных возможностей."
 
-translate russian strings:
-
     # gui/game/screens.rpy:676
     old "Upload Sync"
-    # Automatic translation.
-    new "Синхронизация загрузки"
+    new "Загрузить Sync"
 
     # gui/game/screens.rpy:680
     old "Download Sync"
-    # Automatic translation.
     new "Скачать Sync"
 
     # gui/game/screens.rpy:1410
@@ -707,11 +700,11 @@ translate russian strings:
     old "## https://www.renpy.org/doc/html/bubble.html#bubble-screen"
     new "## https://www.renpy.org/doc/html/bubble.html#bubble-screen"
 
-
-translate russian strings:
-
     # gui/game/screens.rpy:411
     old "## The scroll parameter can be None, or one of \"viewport\" or \"vpgrid\". This screen is intended to be used with one or more children, which are transcluded (placed) inside it."
     # Automatic translation.
     new "## Параметр scroll может быть None или один из \"viewport\" или \"vpgrid\". Этот экран предназначен для использования с одним или несколькими дочерними элементами, которые трансклюдируются (помещаются) внутрь него."
 
+    # gui/game/screens.rpy:1098
+    old "Start, Guide, B/Right Button"
+    new "Старт, Гид, B/Правая кнопка"

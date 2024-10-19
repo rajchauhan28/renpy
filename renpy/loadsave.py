@@ -1,4 +1,4 @@
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -36,6 +36,7 @@ import types
 import shutil
 import os
 import sys
+import time
 
 import renpy
 from json import dumps as json_dumps
@@ -81,16 +82,10 @@ def save_dump(roots, log):
 
         elif isinstance(o, types.MethodType):
 
-            if PY2:
-                o_repr = "<method {0}.{1}>".format(o.__self__.__class__.__name__, o.__func__.__name__) # type: ignore
-            else:
-                o_repr = "<method {0}.{1}>".format(o.__self__.__class__.__name__, o.__name__)
+            o_repr = "<method {0}.{1}>".format(o.__self__.__class__.__name__, o.__name__)
 
         elif isinstance(o, types.FunctionType):
-            if PY2:
-                name = o.__name__
-            else:
-                name = o.__qualname__ or o.__name__
+            name = o.__qualname__ or o.__name__
 
             o_repr = o.__module__ + '.' + name
 
@@ -376,7 +371,7 @@ class SaveRecord(object):
         self.first_filename = filename
 
 
-def save(slotname, extra_info='', mutate_flag=False):
+def save(slotname, extra_info='', mutate_flag=False, include_screenshot=True):
     """
     :doc: loadsave
     :args: (filename, extra_info='')
@@ -393,6 +388,9 @@ def save(slotname, extra_info='', mutate_flag=False):
 
     :func:`renpy.take_screenshot` should be called before this function.
     """
+
+    if not renpy.config.save:
+        return
 
     # Update persistent file, if needed. This is for the web and mobile
     # platforms, to make sure the persistent file is updated whenever the
@@ -434,9 +432,18 @@ def save(slotname, extra_info='', mutate_flag=False):
     if mutate_flag and renpy.revertable.mutate_flag:
         raise SaveAbort()
 
-    screenshot = renpy.game.interface.get_screenshot()
+    if include_screenshot:
+        screenshot = renpy.game.interface.get_screenshot()
+    else:
+        screenshot = None
 
-    json = { "_save_name" : extra_info, "_renpy_version" : list(renpy.version_tuple), "_version" : renpy.config.version }
+    json = {
+        "_save_name" : extra_info,
+        "_renpy_version" : list(renpy.version_tuple),
+        "_version" : renpy.config.version,
+        "_game_runtime" : renpy.exports.get_game_runtime(),
+        "_ctime" : time.time(),
+        }
 
     for i in renpy.config.save_json_callbacks:
         i(json)
@@ -475,9 +482,7 @@ def autosave_thread_function(take_screenshot):
 
     try:
 
-        try:
-
-            cycle_saves(prefix, renpy.config.autosave_slots)
+        with renpy.savelocation.SyncfsLock():
 
             if renpy.config.auto_save_extra_info:
                 extra_info = renpy.config.auto_save_extra_info()
@@ -487,19 +492,18 @@ def autosave_thread_function(take_screenshot):
             if take_screenshot:
                 renpy.exports.take_screenshot(background=True)
 
-            save(prefix + "1", mutate_flag=True, extra_info=extra_info)
-            autosave_counter = 0
+            save("_auto", mutate_flag=True, extra_info=extra_info)
+            cycle_saves(prefix, renpy.config.autosave_slots)
+            rename_save("_auto", prefix + "1")
 
+            autosave_counter = 0
             did_autosave = True
 
-        except Exception:
-            pass
+    except Exception:
+        pass
 
     finally:
         autosave_not_running.set()
-        if renpy.emscripten:
-            import emscripten
-            emscripten.syncfs()
 
 
 def autosave():
@@ -556,6 +560,9 @@ def force_autosave(take_screenshot=False, block=False):
         return
 
     if renpy.game.after_rollback or renpy.exports.in_rollback():
+        return
+
+    if not renpy.store._autosave:
         return
 
     # That is, autosave is running.

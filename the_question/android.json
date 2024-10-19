@@ -10,13 +10,13 @@
     "name": "The Question",
     "numeric_version": 1,
     "orientation": "sensorLandscape",
-    "package": "org.renpy.tq",
+    "package": "org.renpy.thequestion",
     "permissions": [
         "VIBRATE",
         "INTERNET"
     ],
     "source": false,
-    "store": "none",
+    "store": "all",
     "update_always": true,
     "update_icons": true,
     "update_keystores": true,

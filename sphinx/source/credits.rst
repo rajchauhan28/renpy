@@ -12,6 +12,7 @@ missing some names in my logs. If this applies to you, please
 accept my apologies and email pytom at bishoujo.us so I can fix
 the omission in future versions.
 
+* Abdul
 * Absinthe
 * Adam Trzypolski
 * Aenakume
@@ -33,6 +34,7 @@ the omission in future versions.
 * Awakening
 * Ayowel
 * Baekansi
+* Bas Couwenberg
 * Bbs3223474
 * Ben Wright
 * BlackDragonHunt/Mangagamer
@@ -54,16 +56,20 @@ the omission in future versions.
 * Craig P. Donson
 * 被诅咒的章鱼
 * DaFool
+* Daniel Brookman
 * Daniel Conley
 * Daniel Luque
 * David Gowers
 * Deji
 * Delta
 * Dennis Goodlett
+* Denys
 * Denzil
 * Derik
 * Diapolo10
 * DinakiS
+* Dipesh Aggarwal
+* Do10HM
 * Dogtopus
 * Doomfest
 * Donghyeok Tak
@@ -100,7 +106,9 @@ the omission in future versions.
 * Gustavo Carvalho
 * Haelwenn (lanodan) Monnier
 * Hanaka
+* HB38
 * Helloise
+* Helmut K. C. Tessarek
 * Hentai Senshi
 * Herpior
 * HikkeKun
@@ -109,6 +117,8 @@ the omission in future versions.
 * Huanxuantian
 * Hyper Sonic
 * Ian Leslie
+* Iivusly
+* ImJustAQ
 * JackkelDragon
 * Jackmcbarn
 * Jacob Kauffmann
@@ -116,17 +126,20 @@ the omission in future versions.
 * Jake Staines
 * James Broadhead
 * James Pearson Hughes
+* JamiesonC
 * Jan Beich
 * Jan Masek
 * Javimat
 * Jeremy Rand
 * Jesusaves
 * Joaquin Garmendia Cabrera
+* Joseph Boyd
 * Joshua Fehler
 * Joshua Stone
 * Julian Uy
 * Julvenzor
 * Jürg Billeter
+* KagariSoft-Dev
 * Kalawore
 * Kassy
 * Kapil Gain
@@ -145,6 +158,7 @@ the omission in future versions.
 * LaUwUrence
 * Lee Yunseok
 * Lent1
+* Levicratic
 * Lezalith
 * Llyama
 * LoafyLemon
@@ -165,8 +179,10 @@ the omission in future versions.
 * Maxwell Paul Brickner
 * Meithal
 * Merumelu
+* Michael
 * Midgethetree
 * mikey (ATP Projects)
+* Minger0
 * Morgan Willcock
 * Moshibit
 * MrStalker
@@ -184,6 +200,7 @@ the omission in future versions.
 * Numerlor
 * Nxcrft
 * Nyaatrap
+* OleSTEEP
 * Oscar Six
 * Oshi-Shinobu
 * Patrick Dawson
@@ -228,6 +245,7 @@ the omission in future versions.
 * Spiky Caterpillar
 * Susnux
 * Sylvain Beucler
+* Symegac
 * Tey
 * The66F95
 * Thuong Nguyen Huu
@@ -238,6 +256,7 @@ the omission in future versions.
 * Vadim Karpenko
 * Valery Iwanofu
 * Viliam Búr
+* Vladya
 * Vollschauer
 * William Tumeo
 * Winter Wolves
@@ -247,6 +266,7 @@ the omission in future versions.
 * Zedraxlo
 * Zhangning
 * Zigmut
+* Zout141
 * ねゆんせ
 * 琴梨梨
 

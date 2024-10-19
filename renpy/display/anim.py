@@ -1,4 +1,4 @@
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -308,7 +308,7 @@ class SMAnimation(renpy.display.displayable.Displayable):
         for edges in self.edges.values():
             args.extend(edges)
 
-        return SMAnimation(self.initial, delay=self.delay, *args, **self.properties)
+        return SMAnimation(self.initial, *args, delay=self.delay, **self.properties)
 
 
 def Animation(*args, **kwargs):

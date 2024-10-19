@@ -296,6 +296,38 @@ All user interface statements take the following common properties:
     The default focus is only used when the last interaction was not
     a mouse click, mouse movement, or touch.
 
+.. screen-property:: extra_alt
+
+    This is used to specify extra alt text for :doc:`self_voicing`.
+    If defined, the extra alt text is spoken to the player when the
+    '?' key is pressed, and self-voicing ie enabled.
+
+    The ``extra_alt`` is inherited by all children of the displayable,
+    unless they have a more specific ``extra_alt`` set.
+
+    Extra alt text is intended to provide vision-impaired players with
+    additional information about groups of displayables.
+
+.. screen-property:: focus
+
+    Takes a string or integer, and gives a name to the displayable
+    for focus purposes. Ren'Py looks for structural similarity between
+    focus names when deciding with displayable to give focus to at the
+    start of an interaction. If a box is given a focus name, and the
+    third button in that box is focused at the end of an interaction,
+    the third button of a box with the same will be highlighted at
+    the start of the next interaction.
+
+.. screen-property:: group_alt
+
+    This is used to specify a group prefix for :doc:`self_voicing`.
+    When self-voicing is enabled, a group prefix is spoken the first time a displayable
+    with the same group prefix is focused, but will not be spoken again until a
+    displayable with a different group prefix is focused.
+
+    The ``group_alt`` is inherited by all children of the displayable,
+    unless they have a more specific ``group_alt`` set.
+
 .. screen-property:: id
 
     An identifier for the user-interface statement. When a screen is
@@ -303,11 +335,12 @@ All user interface statements take the following common properties:
     given identifier. Some screens will require that a displayable
     with a given identifier is created.
 
-    By default, the ``id`` is automatically-generated.
+    When a displayable is created with an id, the id is stored as a
+    string ion a attribute named id on the Displayable object.
 
 .. screen-property:: prefer_screen_to_id
 
-    If true, when a property is provided by both the the screen and a
+    If true, when a property is provided by both the screen and a
     displayble identifier, the screen property is used. If false, the
     default, the displayable property is used. (This can be used to
     decide if the screen overrides properties set by a Character.)
@@ -352,16 +385,6 @@ All user interface statements take the following common properties:
     If no style prefix is in use, this is used directly as the name of
     the style. A style suffix applies to a single displayable only, not
     a displayable and all children.
-
-.. screen-property:: focus
-
-    Takes a string or integer, and gives a name to the displayable
-    for focus purposes. Ren'Py looks for structural similarity between
-    focus names when deciding with displayable to give focus to at the
-    start of an interaction. If a box is given a focus name, and the
-    third button in that box is focused at the end of an interaction,
-    the third button of a box with the same will be highlighted at
-    the start of the next interaction.
 
 .. screen-property:: tooltip
 
@@ -513,7 +536,7 @@ It also takes:
 * :ref:`window-style-properties`
 * :ref:`button-style-properties`
 
-It takes one children. If zero, two, or more children are supplied,
+It takes one child. If zero, two, or more children are supplied,
 they are implicitly added to a fixed, which is added to the button.
 
 
@@ -546,7 +569,7 @@ This takes the following properties:
 
 .. screen-property:: modal
 
-    By default, the dimiss is modal, preventing events from being processed
+    By default, the dismiss is modal, preventing events from being processed
     by displayables "behind" it.
 
 
@@ -578,7 +601,7 @@ Here's an example of dismiss being used::
                 xalign 0.5
                 action Return()
 
-See also how dismiss is used in conjuction with :ref:`nearrect <sl-nearrect>`.
+See also how dismiss is used in conjunction with :ref:`nearrect <sl-nearrect>`.
 
 .. _sl-fixed:
 
@@ -897,6 +920,16 @@ The input statement takes no parameters, and the following properties:
     using keyboard (Shift+Enter by default,
     can be changed by modifying config.keymap['input_next_line']).
 
+.. screen-property:: action
+
+    If not None, an action that is run when enter is pressed and the
+    input is active. This overrides the default action of returning
+    the input value.
+
+    Generally, this is is used with a `value` that stores the input into
+    a variable, so the action can access it.
+
+
 
 It also takes:
 
@@ -938,7 +971,7 @@ keysyms. It takes two properties:
 
     If true, the default, the event will capture, and will not be
     processed by other displayables. If false and the action does
-    not end the interaction, the event will be procssed by other
+    not end the interaction, the event will be processed by other
     displayables.
 
 It takes no children.
@@ -1128,7 +1161,7 @@ One use of nearrect is for dropdown menus::
 
             has vbox
 
-            # This is the button that is clicked to enable the dropdown,
+            # This is the button that is clicked to enable the dropdown
             textbutton "Difficulty: [difficulty]":
 
                 # This action captures the focus rectangle, and in doing so,
@@ -1139,7 +1172,7 @@ One use of nearrect is for dropdown menus::
                 action Return()
 
         # All sorts of other screen elements could be here, but the nearrect needs
-        # be at the top level, and the last thing show, apart from its child.
+        # to be at the top level, and the last thing shown, apart from its child.
 
         # Only if the focus has been captured, display the dropdown.
         # You could also use showif instead of basic if
@@ -1605,7 +1638,7 @@ If one is omitted or None, the other is automatically determined from the
 size, spacing, and number of children. If a row or column would be underfull,
 ``null`` displayable are used to fill the remaining space.
 
-Vpgrids take the the following properties:
+Vpgrids take the following properties:
 
 .. screen-property:: cols
 
@@ -1980,7 +2013,7 @@ Drag
 ----
 
 Creates a :class:`Drag` that can be dragged around the screen. With the
-acception of `d`, which is supplied by the screen language, this takes
+exception of `d`, which is supplied by the screen language, this takes
 all properties defined in that class.
 
 It also takes the following properties:
@@ -2456,6 +2489,7 @@ hidden. This allows them to be used for overlay purposes.
     if rare_case:
         show rare_screen nopredict
 
+.. _hide-screen-statement:
 
 Hide Screen
 -----------
@@ -2498,6 +2532,8 @@ Similar to the ``show screen`` statement, ``hide screen`` also takes the
     hide screen overlay_screen
     $ screen_name = "some_screen"
     hide screen expression screen_name
+
+.. _call-screen-statement:
 
 Call Screen
 -----------

@@ -1,3 +1,24 @@
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 from __future__ import print_function
 
 from libc.stdlib cimport malloc, free
@@ -43,7 +64,7 @@ cdef class Mesh3(Mesh):
 
         if triangles:
             self.triangles = 0
-            self.triangle = <unsigned short *> malloc(triangles * 3 * sizeof(int))
+            self.triangle = <unsigned int *> malloc(triangles * 3 * sizeof(unsigned int))
 
 
     def __dealloc__(Mesh3 self):
@@ -56,8 +77,8 @@ cdef class Mesh3(Mesh):
 
     def __repr__(Mesh3 self):
 
-        cdef unsigned short i
-        cdef unsigned short j
+        cdef int i
+        cdef int j
 
         rv = "<Mesh3 {!r}".format(self.layout.offset)
 
@@ -196,7 +217,6 @@ cdef class Mesh3(Mesh):
             return (0.0, 0.0, 0.0, 1.0)
         else:
             return (self.point[0].x, self.point[0].y, self.point[0].z, 1.0)
-
 
 ###############################################################################
 # Mesh cropping.

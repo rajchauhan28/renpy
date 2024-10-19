@@ -1,4 +1,4 @@
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -25,8 +25,8 @@ from renpy.compat import PY2, basestring, bchr, bord, chr, open, pystr, range, r
 import random
 
 import renpy
+from renpy.parameter import Signature, ValuedParameter
 from renpy.pyanalysis import Analysis, NOT_CONST, GLOBAL_CONST
-
 
 def compiling(loc):
     file, number = loc # @ReservedAssignment
@@ -66,7 +66,127 @@ def instant(t):
     return 1.0
 
 
-position = renpy.object.Sentinel("position")
+
+class position(object):
+    """
+    A combination of relative and absolute coordinates.
+    """
+    __slots__ = ('absolute', 'relative')
+
+    def __new__(cls, absolute=0, relative=None):
+        """
+        If passed two parameters, takes them as an absolute and a relative.
+        If passed only one parameter, converts it.
+        Using __new__ so that passing a position returns it unchanged.
+        """
+        if relative is None:
+            self = cls.from_any(absolute)
+        else:
+            self = object.__new__(cls)
+            self.absolute = absolute
+            self.relative = relative
+        return self
+
+    @classmethod
+    def from_any(cls, other):
+        if isinstance(other, cls):
+            return other
+        elif type(other) is float:
+            return cls(0, other)
+        else:
+            return cls(other, 0)
+
+    def simplify(self):
+        """
+        Tries to represent this position as an int, float, or absolute, if
+        possible.
+        """
+
+        if self.relative == 0.0:
+            if self.absolute == int(self.absolute):
+                return int(self.absolute)
+            else:
+                return renpy.display.core.absolute(self.absolute)
+        elif self.absolute == 0:
+            return float(self.relative)
+        else:
+            return self
+
+    def __add__(self, other):
+        if isinstance(other, position):
+            return position(self.absolute + other.absolute, self.relative + other.relative)
+        # elif isinstance(other, (int, float)):
+        #     return self + position.from_any(other)
+        return NotImplemented
+
+    __radd__ = __add__
+
+    def __sub__(self, other):
+        return self + -other
+
+    def __rsub__(self, other):
+        return other + -self
+
+    def __mul__(self, other):
+        if isinstance(other, (int, float)):
+            return position(self.absolute * other, self.relative * other)
+        return NotImplemented
+
+    __rmul__ = __mul__
+
+    def __truediv__(self, other):
+        if isinstance(other, (int, float)):
+            return self * (1/other)
+        return NotImplemented
+
+    __div__ = __truediv__ # PY2
+
+    def __pos__(self):
+        return position(renpy.display.core.absolute(self.absolute), float(self.relative))
+
+    def __neg__(self):
+        return -1 * self
+
+    def __repr__(self):
+        return "position(absolute={}, relative={})".format(self.absolute, self.relative)
+
+
+class DualAngle(object):
+    def __init__(self, absolute, relative): # for tests, convert to PY2 after
+        self.absolute = absolute
+        self.relative = relative
+
+    @classmethod
+    def from_any(cls, other):
+        if isinstance(other, cls):
+            return other
+        elif type(other) is float:
+            return cls(other, other)
+        raise TypeError("Cannot convert {} to DualAngle".format(type(other)))
+
+    def __add__(self, other):
+        if isinstance(other, DualAngle):
+            return DualAngle(self.absolute + other.absolute, self.relative + other.relative)
+        return NotImplemented
+
+    def __sub__(self, other):
+        return self + -other
+
+    def __mul__(self, other):
+        if isinstance(other, (int, float)):
+            return DualAngle(self.absolute * other, self.relative * other)
+        return NotImplemented
+
+    __rmul__ = __mul__
+
+    def __neg__(self):
+        return -1 * self
+
+
+def position_or_none(x):
+    if x is None:
+        return None
+    return position.from_any(x)
 
 
 def any_object(x):
@@ -101,26 +221,12 @@ def mesh(x):
     return bool(x)
 
 
-# A dictionary giving property names and the corresponding default
-# values. This is massively added to by renpy.display.transform.
+# A dictionary giving property names and the corresponding type or
+# function. This is massively added to by renpy.display.transform.
 PROPERTIES = { }
 
 
-def correct_type(v, b, ty):
-    """
-    Corrects the type of v to match ty. b is used to inform the match.
-    """
-
-    if ty is position:
-        if v is None:
-            return None
-        else:
-            return type(b)(v)
-    else:
-        return ty(v)
-
-
-def interpolate(t, a, b, type): # @ReservedAssignment
+def interpolate(t, a, b, typ):
     """
     Linearly interpolate the arguments.
     """
@@ -137,10 +243,10 @@ def interpolate(t, a, b, type): # @ReservedAssignment
         if a is None:
             a = [ None ] * len(b)
 
-        if not isinstance(type, tuple):
-            type = (type,) * len(b)
+        if not isinstance(typ, tuple):
+            typ = (typ,) * len(b)
 
-        return tuple(interpolate(t, i, j, ty) for i, j, ty in zip(a, b, type))
+        return tuple(interpolate(t, i, j, ty) for i, j, ty in zip(a, b, typ))
 
     # If something is callable, call it and return the result.
     elif callable(b):
@@ -154,34 +260,46 @@ def interpolate(t, a, b, type): # @ReservedAssignment
         if a is None:
             a = 0
 
-        return correct_type(a + t * (b - a), b, type)
+        if typ in (position_or_none, position):
+            if renpy.config.mixed_position:
+                a = position.from_any(a)
+                b = position.from_any(b)
+                return (1-t)*a + t*b # same result, faster execution
+            else:
+                typ = type(b)
+
+        return typ(a + t * (b - a))
+
 
 # Interpolate the value of a spline. This code is based on Aenakume's code,
 # from 00splines.rpy.
 
-
-def interpolate_spline(t, spline):
+def interpolate_spline(t, spline, typ):
 
     if isinstance(spline[-1], tuple):
-        return tuple(interpolate_spline(t, i) for i in zip(*spline))
+        return tuple(interpolate_spline(t, i, ty) for i, ty in zip(zip(*spline), typ))
 
     if spline[0] is None:
         return spline[-1]
 
-    if len(spline) == 2:
+    if renpy.config.mixed_position and typ in (position_or_none, position):
+        spline = [position_or_none(i) for i in spline]
+
+    lenspline = len(spline)
+
+    if lenspline == 2:
         t_p = 1.0 - t
 
         rv = t_p * spline[0] + t * spline[-1]
 
-    elif len(spline) == 3:
+    elif lenspline == 3:
         t_pp = (1.0 - t) ** 2
         t_p = 2 * t * (1.0 - t)
         t2 = t ** 2
 
         rv = t_pp * spline[0] + t_p * spline[1] + t2 * spline[2]
 
-    elif len(spline) == 4:
-
+    elif lenspline == 4:
         t_ppp = (1.0 - t) ** 3
         t_pp = 3 * t * (1.0 - t) ** 2
         t_p = 3 * t ** 2 * (1.0 - t)
@@ -189,30 +307,35 @@ def interpolate_spline(t, spline):
 
         rv = t_ppp * spline[0] + t_pp * spline[1] + t_p * spline[2] + t3 * spline[3]
 
+    elif t <= 0.0:
+        rv = spline[0]
+    elif t >= 1.0:
+        rv = spline[-1]
+
     else:
+        # Catmull-Rom (re-adjust the control points)
+        spline = [
+            spline[1],
+            spline[0]
+        ] + list(spline[2:-2]) + [
+            spline[-1],
+            spline[-2]
+        ]
 
-        if t <= 0.0 or t >= 1.0:
+        inner_spline_count = float(lenspline - 3)
 
-            rv = spline[0 if t <= 0.0 else -1]
+        # determine which spline values are relevant
+        sector = int(t // (1.0 / inner_spline_count) + 1)
 
-        else:
+        # determine t for this sector
+        t = (t % (1.0 / inner_spline_count)) * inner_spline_count
 
-            # Catmull-Rom (re-adjust the control points)
-            spline = ([spline[1], spline[0]]
-                    +list(spline[2:-2])
-                    +[spline[-1], spline[-2]])
+        rv = get_catmull_rom_value(t, *spline[sector - 1:sector + 3])
 
-            inner_spline_count = float(len(spline) - 3)
-
-            # determine which spline values are relevant
-            sector = int(t // (1.0 / inner_spline_count) + 1)
-
-            # determine t for this sector
-            t = (t % (1.0 / inner_spline_count)) * inner_spline_count
-
-            rv = get_catmull_rom_value(t, *spline[sector - 1:sector + 3])
-
-    return correct_type(rv, spline[-1], position)
+    if rv is None:
+        return None
+    else:
+        return type(spline[-1])(rv)
 
 
 def get_catmull_rom_value(t, p_1, p0, p1, p2):
@@ -242,23 +365,10 @@ def compile_all():
 
     for i in compile_queue:
 
-        i.atl.find_loaded_variables()
-
         if i.atl.constant == GLOBAL_CONST:
             i.compile()
 
     compile_queue = [ ]
-
-def find_loaded_variables(expr):
-    """
-    Returns the set of variables that are loaded by the given expression.
-    """
-
-    if expr is None:
-        return set()
-
-    ast = renpy.pyanalysis.ccache.ast_eval(expr)
-    return renpy.python.find_loaded_variables(ast)
 
 
 # Used to indicate that a variable is not in the context.
@@ -285,40 +395,19 @@ class Context(object):
     def __ne__(self, other):
         return not (self == other)
 
-    def variables_equal(self, other, variables):
-        """
-        Returns true if the variables in `variables` are equal in
-        this context and `other`. False if they are not equal.
-
-        Returns True if any variable cannot be compared.
-        """
-
-        try:
-
-            if renpy.config.at_transform_compare_full_context:
-                if self.context != other.context:
-                    return False
-
-            for i in variables:
-                if self.context.get(i, NotInContext) != other.context.get(i, NotInContext):
-                    return False
-
-            return True
-
-        except Exception:
-            return True
-
-
-# This is intended to be subclassed by ATLTransform. It takes care of
-# managing ATL execution, which allows ATLTransform itself to not care
-# much about the contents of this file.
-
 
 class ATLTransformBase(renpy.object.Object):
+    """
+    This is intended to be subclassed by ATLTransform. It takes care of
+    managing ATL execution, which allows ATLTransform itself to not care
+    much about the contents of this file.
+    """
+
+    __version__ = 1
 
     # Compatibility with older saves.
     parameters = renpy.ast.EMPTY_PARAMETERS
-    parent_transform = None
+    parent_transform = None # type: ATLTransformBase|None
     atl_st_offset = 0
 
     # The block, as first compiled for prediction.
@@ -326,19 +415,28 @@ class ATLTransformBase(renpy.object.Object):
 
     nosave = [ 'parent_transform' ]
 
+    def after_upgrade(self, version):
+        if version < 1:
+            # any value in the inner scope was treated as a valid keyword parameter
+            # so, we turn any inner scope value into a keyword parameter
+            rv_parameters = []
+            for name, value in self.context.context.items():
+                if name not in self.parameters.parameters:
+                    rv_parameters.append(ValuedParameter(name, ValuedParameter.KEYWORD_ONLY, default=value))
+            if rv_parameters:
+                rv_parameters = list(self.parameters.parameters.values()) + rv_parameters
+                rv_parameters.sort(key=lambda p: p.kind)
+                self.parameters = Signature(rv_parameters)
+
     def __init__(self, atl, context, parameters):
 
         # The constructor will be called by atltransform.
         if parameters is None:
             parameters = ATLTransformBase.parameters
         else:
-
-            # Apply the default parameters.
             context = context.copy()
-
-            for k, v in parameters.parameters:
-                if v is not None:
-                    context[k] = renpy.python.py_eval(v, locals=context)
+            # Apply the default parameters.
+            parameters.apply_defaults(context, scope=context)
 
         # The parameters that we take.
         self.parameters = parameters
@@ -447,7 +545,12 @@ class ATLTransformBase(renpy.object.Object):
         # a way that would affect the execution of the ATL.
 
         if t.atl.constant != GLOBAL_CONST:
-            if not self.context.variables_equal(t.context, t.atl.find_loaded_variables()):
+
+            block = self.get_block()
+            if block is None:
+                block = self.compile()
+
+            if not deep_compare(self.block, t.block):
                 return
 
         self.done = t.done
@@ -476,47 +579,96 @@ class ATLTransformBase(renpy.object.Object):
 
         _args = kwargs.pop("_args", None)
 
-        context = self.context.context.copy()
-
-        positional = list(self.parameters.positional)
-        args = list(args)
-
+        scope = self.context.context.copy()
+        signature = self.parameters
         child = None
 
-        if not positional and args:
-            child = args.pop(0)
+        if renpy.config.atl_pos_only_as_pos_or_kw:
+            signature = signature.with_pos_only_as_pos_or_kw()
 
-        # Handle positional arguments.
-        while positional and args:
-            name = positional.pop(0)
-            value = args.pop(0)
+        present_kinds = {p.kind for p in signature.parameters.values()}
 
-            if name in kwargs:
-                raise Exception('Parameter %r is used as both a positional and keyword argument to a transition.' % name)
+        child_param = signature.parameters.get("child", None)
+        old_widget_param = signature.parameters.get("old_widget", None)
+        # args_param_name = None
+        # if ValuedParameter.VAR_POSITIONAL in present_kinds:
+        #     for param in signature.parameters.values():
+        #         if param.kind == ValuedParameter.VAR_POSITIONAL:
+        #             args_param_name = param.name
+        #             break
+        # kwargs_param_name = None
+        # if ValuedParameter.VAR_KEYWORD in present_kinds:
+        #     for param in signature.parameters.values():
+        #         if param.kind == ValuedParameter.VAR_KEYWORD:
+        #             kwargs_param_name = param.name
+        #             break
 
-            if (name == "child") or (name == "old_widget"):
-                child = value
+        ## if a single arg is passed and no positional parameter is there to catch it, set it to be the child
+        if args and (present_kinds <= {ValuedParameter.KEYWORD_ONLY, ValuedParameter.VAR_KEYWORD}):
+            try:
+                child, = args
+            except Exception:
+                raise Exception("Too many arguments passed to ATL transform.")
+            args = ()
 
-            context[name] = value
+        if (child_param is None) or (child_param.kind not in {ValuedParameter.POSITIONAL_OR_KEYWORD, ValuedParameter.KEYWORD_ONLY}):
+            # if kwargs_param_name is None:
+                child = kwargs.pop("child", child)
+        else:
+            child = kwargs.get("child", child)
+        if (old_widget_param is not None) and (old_widget_param.kind in {ValuedParameter.POSITIONAL_OR_KEYWORD, ValuedParameter.KEYWORD_ONLY}):
+            # if getattr(signature.parameters.get("new_widget", None), "kind", None) in {ValuedParameter.POSITIONAL_OR_KEYWORD, ValuedParameter.KEYWORD_ONLY}: # Gamma-ter
+            child = kwargs.get("old_widget", child)
 
-        if args:
-            raise Exception("Too many arguments passed to ATL transform.")
+        new_scope = signature.apply(args, kwargs, partial=True, apply_defaults=False)
 
-        # Handle keyword arguments.
-        for k, v in kwargs.items():
+        ## when *args and **kwargs are enabled
+        # if args_param_name:
+        #     var_args = new_scope.pop(args_param_name, ())
+        #     if args_param_name in scope:
+        #         scope[args_param_name] += var_args
+        #     else:
+        #         scope[args_param_name] = var_args
+        # if kwargs_param_name:
+        #     var_kwargs = new_scope.pop(kwargs_param_name, {})
+        #     if kwargs_param_name in scope:
+        #         scope[kwargs_param_name].update(var_kwargs)
+        #     else:
+        #         scope[kwargs_param_name] = var_kwargs
 
-            if k == "old_widget":
-                child = v
+        scope.update(new_scope)
 
-            if k in positional:
-                positional.remove(k)
-                context[k] = v
-            elif k in context:
-                context[k] = v
-            elif k == 'child':
-                child = v
+        if child is None:
+            ## if a child parameter gets a value by a positional argument
+            if child_param and (child_param.kind in {ValuedParameter.POSITIONAL_ONLY, ValuedParameter.POSITIONAL_OR_KEYWORD}):
+                child = new_scope.get("child", child)
+
+        rv_parameters = []
+        for name, param in signature.parameters.items():
+            passed = name in new_scope
+            pkind = param.kind
+
+            ## when *args and **kwargs are enabled
+            # if name in (args_param_name, kwargs_param_name):
+            #     pass
+
+            ## when positional-only parameters are enabled
+            # elif passed and (pkind == param.POSITIONAL_ONLY):
+            #     continue
+
+            if passed: # turn into elif when possible
+                param = ValuedParameter(name, param.KEYWORD_ONLY, default=scope[name])
+
+            elif param.has_default:
+                param = ValuedParameter(name, pkind, default=scope[name])
+
             else:
-                raise Exception('Parameter %r is not known by ATL Transform.' % k)
+                ## not passed and no default value
+                pass
+
+            rv_parameters.append(param)
+
+        rv_parameters.sort(key=lambda p: p.kind)
 
         if child is None:
             child = self.child
@@ -524,19 +676,16 @@ class ATLTransformBase(renpy.object.Object):
         if getattr(child, '_duplicatable', False):
             child = child._duplicate(_args)
 
-        # Create a new ATL Transform.
-        parameters = renpy.ast.ParameterInfo([ ], positional, None, None)
-
         rv = renpy.display.motion.ATLTransform(
             atl=self.atl,
             child=child,
             style=self.style_arg, # type: ignore
-            context=context,
-            parameters=parameters,
+            context=scope,
+            parameters=Signature(rv_parameters),
             _args=_args,
-            )
+        )
 
-        rv.parent_transform = self # type: ignore
+        rv.parent_transform = self
         rv.take_state(self)
 
         return rv
@@ -550,13 +699,14 @@ class ATLTransformBase(renpy.object.Object):
         constant = (self.atl.constant == GLOBAL_CONST)
 
         if not constant:
-            for p in self.parameters.positional:
-                if p not in self.context.context:
-                    raise Exception("Cannot compile ATL Transform at %s:%d, as it's missing positional parameter %s." % (
-                        self.atl.loc[0],
-                        self.atl.loc[1],
-                        p,
-                        ))
+            missing = set(self.parameters.parameters) - set(self.context.context)
+            if missing:
+                last = missing.pop()
+                raise Exception("Cannot compile ATL Transform at {}:{}, as it's missing parameters {}.".format(
+                    self.atl.loc[0],
+                    self.atl.loc[1],
+                    "{} and {!r}".format(", ".join(map(repr, missing)), last) if missing else repr(last),
+                ))
 
         if constant and self.parent_transform:
             if self.parent_transform.block:
@@ -596,9 +746,6 @@ class ATLTransformBase(renpy.object.Object):
         return block
 
     def execute(self, trans, st, at):
-
-        if self.state.debug:
-            print("A", st)
 
         if self.done:
             return None
@@ -704,12 +851,6 @@ class RawStatement(object):
 
         self.constant = NOT_CONST
 
-    def find_loaded_variables(self):
-        """
-        Returns the set of variables that are loaded by this statement.
-        """
-
-        raise Exception("find_loaded_variables not implemented.")
 
 # The base class for compiled ATL Statements.
 
@@ -767,10 +908,6 @@ class RawBlock(RawStatement):
     # If this block uses only constant values we can once compile it
     # and use this value for all ATLTransform that use us as an atl.
     compiled_block = None
-
-    # If this is the outermost ATL of a parse, a set giving the variables
-    # that are loaded by this block.
-    loaded_variable_cache = None
 
 
     def __init__(self, loc, statements, animation):
@@ -833,20 +970,6 @@ class RawBlock(RawStatement):
             constant = min(constant, i.constant)
 
         self.constant = constant
-
-    def find_loaded_variables(self):
-
-        if self.loaded_variable_cache is not None:
-            return self.loaded_variable_cache
-
-        variables = set()
-
-        for i in self.statements:
-            variables.update(i.find_loaded_variables())
-
-        self.loaded_variable_cache = variables
-
-        return variables
 
 
 # A compiled ATL block.
@@ -1023,6 +1146,16 @@ compatible_pairs = [
 # values of the variables here.
 
 
+def check_spline_types(value):
+    if isinstance(value, (position, int, float)):
+        return True
+
+    if isinstance(value, tuple):
+        return all(check_spline_types(i) for i in value)
+
+    return False
+
+
 class RawMultipurpose(RawStatement):
 
     warp_function = None
@@ -1142,6 +1275,12 @@ class RawMultipurpose(RawStatement):
 
             values = [ ctx.eval(i) for i in exprs ]
 
+            if not all(check_spline_types(i) for i in values):
+                if name in { "matrixtransform", "matrixcolor" }:
+                    raise Exception("%s: Spline interpolation requires position types. (You may want to use SplineMatrix.)" % name)
+                else:
+                    raise Exception("%s: Spline interpolation requires position types." % name)
+
             splines.append((name, values))
 
         for expr, _with in self.expressions:
@@ -1186,26 +1325,6 @@ class RawMultipurpose(RawStatement):
 
         self.constant = constant
 
-    def find_loaded_variables(self):
-        rv = set()
-
-        rv.update(find_loaded_variables(self.warp_function))
-        rv.update(find_loaded_variables(self.duration))
-        rv.update(find_loaded_variables(self.circles))
-
-        for _name, expr in self.properties:
-            rv.update(find_loaded_variables(expr))
-
-        for _name, exprs in self.splines:
-            for expr in exprs:
-                rv.update(find_loaded_variables(expr))
-
-        for expr, withexpr in self.expressions:
-            rv.update(find_loaded_variables(expr))
-            rv.update(find_loaded_variables(withexpr))
-
-        return rv
-
     def predict(self, ctx):
 
         for i, _j in self.expressions:
@@ -1241,9 +1360,6 @@ class RawContainsExpr(RawStatement):
     def mark_constant(self, analysis):
         self.constant = analysis.is_constant_expr(self.expression)
 
-    def find_loaded_variables(self):
-        return find_loaded_variables(self.expression)
-
 
 # This allows us to have multiple ATL transforms as children.
 class RawChild(RawStatement):
@@ -1277,14 +1393,6 @@ class RawChild(RawStatement):
             constant = min(constant, i.constant)
 
         self.constant = constant
-
-    def find_loaded_variables(self):
-        rv = set()
-
-        for i in self.children:
-            rv.update(i.find_loaded_variables())
-
-        return rv
 
 
 # This changes the child of this statement, optionally with a transition.
@@ -1382,19 +1490,16 @@ class Interpolation(Statement):
                 setattr(newts, k, v)
 
                 if k == "angle":
-                    newts.last_angle = v
                     has_angle = True
 
                 elif k == "radius":
                     has_radius = True
 
                 elif k == "anchorangle":
-                    newts.last_anchorangle = v
                     has_anchorangle = True
 
                 elif k == "anchorradius":
                     has_anchorradius = True
-
 
             # Now, the things we change linearly are in the difference
             # between the new and old states.
@@ -1402,17 +1507,17 @@ class Interpolation(Statement):
 
             # Angle and radius need to go after the linear changes, as
             # around or alignaround must be set first.
-            angle = None
-            radius = None
-            anchorangle = None
-            anchorradius = None
+            angles = None
+            radii = None
+            anchorangles = None
+            anchorradii = None
 
             splines = [ ]
 
             revdir = self.revolution
             circles = self.circles
 
-            if (revdir or ((has_angle or has_radius) and renpy.config.automatic_polar_motion)) and (newts.xaround is not None):
+            if revdir or ((has_angle or has_radius) and renpy.config.automatic_polar_motion) or has_anchorangle or has_anchorradius:
 
                 # Remove various irrelevant motions.
                 for i in [ 'xpos', 'ypos',
@@ -1426,8 +1531,8 @@ class Interpolation(Statement):
                 if revdir is not None:
 
                     # Ensure we rotate around the new point.
-                    trans.state.xaround = newts.xaround
-                    trans.state.yaround = newts.yaround
+                    trans.state.xaround = newts.xaround or .0
+                    trans.state.yaround = newts.yaround or .0
                     trans.state.xanchoraround = newts.xanchoraround
                     trans.state.yanchoraround = newts.yanchoraround
 
@@ -1438,7 +1543,11 @@ class Interpolation(Statement):
                     endradius = newts.radius
 
                     startanchorangle = trans.state.anchorangle
+                    startanchorangle_absolute = startanchorangle.absolute
+                    startanchorangle_relative = startanchorangle.relative
                     endanchorangle = newts.anchorangle
+                    endanchorangle_absolute = endanchorangle.absolute
+                    endanchorangle_relative = endanchorangle.relative
                     startanchorradius = trans.state.anchorradius
                     endanchorradius = newts.anchorradius
 
@@ -1449,52 +1558,81 @@ class Interpolation(Statement):
                         if endangle < startangle:
                             startangle -= 360
 
-                        if endanchorangle < startanchorangle:
-                            startanchorangle -= 360
+                        if endanchorangle_absolute < startanchorangle_absolute:
+                            endanchorangle_absolute -= 360
+                        if endanchorangle_relative < startanchorangle_relative:
+                            endanchorangle_relative -= 360
 
                         startangle -= circles * 360
-                        startanchorangle -= circles * 360
+                        startanchorangle_absolute -= circles * 360
+                        startanchorangle_relative -= circles * 360
 
                     elif revdir == "counterclockwise":
                         if endangle > startangle:
                             startangle += 360
 
-                        if endanchorangle > startanchorangle:
-                            startanchorangle += 360
+                        if endanchorangle_absolute > startanchorangle_absolute:
+                            endanchorangle_absolute += 360
+                        if endanchorangle_relative > startanchorangle_relative:
+                            endanchorangle_relative += 360
 
                         startangle += circles * 360
-                        startanchorangle += circles * 360
+                        startanchorangle_absolute += circles * 360
+                        startanchorangle_relative += circles * 360
 
-                    has_radius = True
-                    has_angle = True
-                    has_anchorangle = True
-                    has_anchorradius = True
-
-                    radius = (startradius, endradius)
-                    angle = (startangle, endangle)
-                    anchorradius = (startanchorradius, endanchorradius)
-                    anchorangle = (startanchorangle, endanchorangle)
+                    radii = (startradius, endradius)
+                    angles = (startangle, endangle)
+                    anchorradii = (startanchorradius, endanchorradius)
+                    anchorangles = (
+                        DualAngle(startanchorangle_absolute, startanchorangle_relative),
+                        DualAngle(endanchorangle_absolute, endanchorangle_relative),
+                    )
 
                 else:
 
                     if has_angle:
-                        last_angle = trans.state.angle or trans.state.last_angle
-                        angle = (last_angle, newts.last_angle)
+                        start = trans.state.angle
+                        end = newts.last_angle
+
+                        if end - start > 180:
+                            start += 360
+                        if end - start < -180:
+                            start -= 360
+
+                        angles = (start, end)
 
                     if has_radius:
-                        radius = (trans.state.radius, newts.radius)
+                        radii = (trans.state.radius, newts.radius)
 
                     if has_anchorangle:
-                        last_anchorangle = trans.state.anchorangle or trans.state.last_anchorangle
+                        start = trans.state.anchorangle
+                        start_absolute = start.absolute
+                        start_relative = start.relative
+                        end_absolute = newts.last_absolute_anchorangle
+                        end_relative = newts.last_relative_anchorangle
+
+                        if end_absolute - start_absolute > 180:
+                            start_absolute += 360
+                        if end_absolute - start_absolute < -180:
+                            start_absolute -= 360
+                        if end_relative - start_relative > 180:
+                            start_relative += 360
+                        if end_relative - start_relative < -180:
+                            start_relative -= 360
+
+                        anchorangles = (
+                            DualAngle(start_absolute, start_relative),
+                            DualAngle(end_absolute, end_relative),
+                        )
 
                     if has_anchorradius:
-                        anchorradius = (trans.state.anchorradius, newts.anchorradius)
+                        anchorradii = (trans.state.anchorradius, newts.anchorradius)
 
             # Figure out the splines.
             for name, values in self.splines:
-                splines.append((name, [ getattr(trans.state, name) ] + values))
+                splines.append((name, [ trans.state.get(name) ] + values))
 
-            state = (linear, angle, radius, anchorangle, anchorradius, splines)
+            state = (linear, angles, radii, anchorangles, anchorradii, splines)
 
             # Ensure that we set things, even if they don't actually
             # change from the old state.
@@ -1503,7 +1641,7 @@ class Interpolation(Statement):
                     setattr(trans.state, k, v)
 
         else:
-            linear, angle, radius, anchorangle, anchorradius, splines = state
+            linear, angles, radii, anchorangles, anchorradii, splines = state
 
         # Linearly interpolate between the things in linear.
         for k, (old, new) in linear.items():
@@ -1524,31 +1662,29 @@ class Interpolation(Statement):
             setattr(trans.state, k, value)
 
         # Handle the angle.
-        if angle is not None:
-            startangle, endangle = angle[:2]
+        if angles is not None:
+            startangle, endangle = angles[:2]
 
             angle = interpolate(complete, startangle, endangle, float)
             trans.state.angle = angle
 
-        if radius is not None:
-            startradius, endradius = radius
-            trans.state.radius = interpolate(complete, startradius, endradius, position)
+        if radii is not None:
+            startradius, endradius = radii
+            trans.state.radius = interpolate(complete, startradius, endradius, position_or_none)
 
-        if anchorangle is not None:
-            startangle, endangle = anchorangle[:2]
+        if anchorangles is not None:
+            startangle, endangle = anchorangles[:2]
 
-            angle = interpolate(complete, startangle, endangle, float)
-            trans.state.anchorangle = angle
+            anchorangle = interpolate(complete, startangle, endangle, DualAngle.from_any)
+            trans.state.anchorangle = anchorangle
 
-        if anchorradius is not None:
-            startradius, endradius = anchorradius
-            trans.state.anchorradius = interpolate(complete, startradius, endradius, position)
-
-
+        if anchorradii is not None:
+            startradius, endradius = anchorradii
+            trans.state.anchorradius = interpolate(complete, startradius, endradius, position_or_none)
 
         # Handle any splines we might have.
         for name, values in splines:
-            value = interpolate_spline(complete, values)
+            value = interpolate_spline(complete, values, PROPERTIES[name])
             setattr(trans.state, name, value)
 
         if (st >= self.duration) and (not force_frame):
@@ -1582,9 +1718,6 @@ class RawRepeat(RawStatement):
 
     def mark_constant(self, analysis):
         self.constant = analysis.is_constant_expr(self.repeats)
-
-    def find_loaded_variables(self):
-        return find_loaded_variables(self.repeats)
 
 class Repeat(Statement):
 
@@ -1623,13 +1756,6 @@ class RawParallel(RawStatement):
 
         self.constant = constant
 
-    def find_loaded_variables(self):
-        rv = set()
-
-        for i in self.blocks:
-            rv.update(i.find_loaded_variables())
-
-        return rv
 
 
 class Parallel(Statement):
@@ -1711,15 +1837,6 @@ class RawChoice(RawStatement):
 
         self.constant = constant
 
-    def find_loaded_variables(self):
-        rv = set()
-
-        for chance, block in self.choices:
-            rv.update(find_loaded_variables(chance))
-            rv.update(block.find_loaded_variables())
-
-        return rv
-
 
 class Choice(Statement):
 
@@ -1789,9 +1906,6 @@ class RawTime(RawStatement):
     def mark_constant(self, analysis):
         self.constant = analysis.is_constant_expr(self.time)
 
-    def find_loaded_variables(self):
-        return find_loaded_variables(self.time)
-
 
 class Time(Statement):
 
@@ -1838,15 +1952,6 @@ class RawOn(RawStatement):
             constant = min(constant, block.constant)
 
         self.constant = constant
-
-    def find_loaded_variables(self):
-        rv = set()
-
-        for block in self.handlers.values():
-            rv.update(block.find_loaded_variables())
-
-        return rv
-
 
 class On(Statement):
 
@@ -1956,9 +2061,6 @@ class RawEvent(RawStatement):
     def mark_constant(self, analysis):
         self.constant = GLOBAL_CONST
 
-    def find_loaded_variables(self):
-        return set()
-
 
 class Event(Statement):
 
@@ -1985,9 +2087,6 @@ class RawFunction(RawStatement):
     def mark_constant(self, analysis):
         self.constant = analysis.is_constant_expr(self.expr)
 
-    def find_loaded_variables(self):
-        return find_loaded_variables(self.expr)
-
 
 class Function(Statement):
 
@@ -2005,8 +2104,8 @@ class Function(Statement):
         fr = self.function(trans, st if block else 0, trans.at)
 
         if (not block) and (fr is not None):
-           block = True
-           fr = self.function(trans, st, trans.at)
+            block = True
+            fr = self.function(trans, st, trans.at)
 
         if fr is not None:
             return "continue", True, fr
@@ -2169,7 +2268,7 @@ def parse_atl(l):
             # Now, look for properties and simple_expressions.
             while True:
 
-                if (warper is not None) and (not has_block) and ll.match(':'):
+                if ((warper is not None) or (warp_function is not None)) and (not has_block) and ll.match(':'):
                     ll.expect_eol()
                     ll.expect_block("ATL")
                     has_block = True
@@ -2299,3 +2398,28 @@ def parse_atl(l):
         old = new
 
     return RawBlock(block_loc, merged, animation)
+
+def deep_compare(a, b):
+    """
+    Compares two trees of ATL statements for equality.
+    """
+
+    if type(a) != type(b):
+        return False
+
+    if isinstance(a, (list, tuple)):
+        return all(deep_compare(i, j) for i, j in zip(a, b))
+
+    if isinstance(a, dict):
+        if len(a) != len(b):
+            return False
+
+        return all((k in b) and deep_compare(a[k], b[k]) for k in a)
+
+    if isinstance(a, Statement):
+        return deep_compare(a.__dict__, b.__dict__)
+
+    try:
+        return a == b
+    except Exception:
+        return True

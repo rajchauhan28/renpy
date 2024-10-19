@@ -1,4 +1,4 @@
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -26,6 +26,7 @@ from renpy.compat import PY2, basestring, bchr, bord, chr, open, pystr, range, r
 
 import codecs
 import re
+import sys
 import os
 import time
 import contextlib
@@ -255,16 +256,36 @@ def list_logical_lines(filename, filedata=None, linenumber=1, add_lines=False):
     contents. In that case, `filename` need not exist.
     """
 
-    def munge_string(m):
-        brackets = m.group(1)
+    if renpy.config.munge_in_strings:
 
-        if (len(brackets) & 1) == 0:
-            return m.group(0)
+        munge_regexp = re.compile(r'\b__(\w+)')
 
-        if "__" in m.group(2):
-            return m.group(0)
+        def munge_string(m):
 
-        return brackets + prefix + m.group(2)
+            g1 = m.group(1)
+
+            if "__" in g1:
+                return m.group(0)
+
+            if g1.startswith("_"):
+                return m.group(0)
+
+            return prefix + m.group(1)
+
+    else:
+
+        munge_regexp = re.compile(r'(\.|\[+)__(\w+)')
+
+        def munge_string(m):
+            brackets = m.group(1)
+
+            if (len(brackets) & 1) == 0:
+                return m.group(0)
+
+            if "__" in m.group(2):
+                return m.group(0)
+
+            return brackets + prefix + m.group(2)
 
     global original_filename
 
@@ -455,10 +476,8 @@ def list_logical_lines(filename, filedata=None, linenumber=1, add_lines=False):
 
                 s = "".join(s)
 
-                if "[__" in s:
-
-                    # Munge substitutions.
-                    s = re.sub(r'(\.|\[+)__(\w+)', munge_string, s)
+                if "__" in s:
+                    s = munge_regexp.sub(munge_string, s)
 
                 line.append(s)
 
@@ -485,6 +504,61 @@ def list_logical_lines(filename, filedata=None, linenumber=1, add_lines=False):
     return rv
 
 
+def depth_split(l):
+    """
+    Returns the length of the line's prefix, and the rest of the line.
+    """
+
+    depth = 0
+    index = 0
+
+    while True:
+        if l[index] == ' ':
+            depth += 1
+            index += 1
+            continue
+
+        break
+
+    return depth, l[index:]
+
+# i, min_depth -> block, new_i
+def gll_core(lines, i, min_depth):
+    """
+    Recursively groups lines into blocks.
+
+    Given the line
+    """
+
+    rv = []
+    depth = None
+
+    while i < len(lines):
+
+        filename, number, text = lines[i]
+
+        line_depth, rest = depth_split(text)
+
+        # This catches a block exit.
+        if line_depth < min_depth:
+            break
+
+        if depth is None:
+            depth = line_depth
+
+        if depth != line_depth:
+            raise ParseError(filename, number, "Indentation mismatch.")
+
+        # Advance to the next line.
+        i += 1
+
+        # Try parsing a block associated with this line.
+        block, i = gll_core(lines, i, depth + 1)
+
+        rv.append((filename, number, rest, block))
+
+    return rv, i
+
 def group_logical_lines(lines):
     """
     This takes as input the list of logical line triples output from
@@ -494,59 +568,6 @@ def group_logical_lines(lines):
     no block is associated with this line.)
     """
 
-    # Returns the depth of a line, and the rest of the line.
-    def depth_split(l):
-
-        depth = 0
-        index = 0
-
-        while True:
-            if l[index] == ' ':
-                depth += 1
-                index += 1
-                continue
-
-            # if l[index] == '\t':
-            #    index += 1
-            #    depth = depth + 8 - (depth % 8)
-            #    continue
-
-            break
-
-        return depth, l[index:]
-
-    # i, min_depth -> block, new_i
-    def gll_core(i, min_depth):
-
-        rv = []
-        depth = None
-
-        while i < len(lines):
-
-            filename, number, text = lines[i]
-
-            line_depth, rest = depth_split(text)
-
-            # This catches a block exit.
-            if line_depth < min_depth:
-                break
-
-            if depth is None:
-                depth = line_depth
-
-            if depth != line_depth:
-                raise ParseError(filename, number, "Indentation mismatch.")
-
-            # Advance to the next line.
-            i += 1
-
-            # Try parsing a block associated with this line.
-            block, i = gll_core(i, depth + 1)
-
-            rv.append((filename, number, rest, block))
-
-        return rv, i
-
     if lines:
 
         filename, number, text = lines[0]
@@ -554,7 +575,7 @@ def group_logical_lines(lines):
         if depth_split(text)[0] != 0:
             raise ParseError(filename, number, "Unexpected indentation at start of file.")
 
-    return gll_core(0, 0)[0]
+    return gll_core(lines, 0, 0)[0]
 
 
 # A list of keywords which should not be parsed as names, because
@@ -563,30 +584,23 @@ def group_logical_lines(lines):
 # Note: We need to be careful with what's in here, because these
 # are banned in simple_expressions, where we might want to use
 # some of them.
-KEYWORDS = set([
-    '$',
+KEYWORDS = {
     'as',
-    'at',
-    'behind',
-    'call',
-    'expression',
-    'hide',
     'if',
     'in',
-    'image',
-    'init',
-    'jump',
-    'menu',
-    'onlayer',
-    'python',
     'return',
-    'scene',
-    'show',
     'with',
     'while',
+}
+
+IMAGE_KEYWORDS = {
+    'behind',
+    'at',
+    'onlayer',
+    'with',
     'zorder',
     'transform',
-    ])
+}
 
 OPERATORS = [
     '<>',
@@ -758,6 +772,21 @@ class Lexer(object):
         self.skip_whitespace()
         return self.match_regexp(regexp)
 
+    def match_multiple(self, *regexps):
+        """
+        Matches multiple regular expressions. Return a tuple of matches
+        if all match, and if not returns None.
+        """
+
+        oldpos = self.pos
+
+        rv = tuple(self.match(i) for i in regexps)
+        if None in rv:
+            self.pos = oldpos
+            return None
+
+        return rv
+
     def keyword(self, word):
         """
         Matches a keyword at the current position. A keyword is a word
@@ -866,7 +895,7 @@ class Lexer(object):
 
     def string(self):
         """
-        Lexes a string, and returns the string to the user, or None if
+        Lexes a non-triple-quoted string, and returns the string to the user, or None if
         no string could be found. This also takes care of expanding
         escapes and collapsing whitespace.
 
@@ -928,6 +957,9 @@ class Lexer(object):
         This is about the same as the double-quoted strings, except that
         runs of whitespace with multiple newlines are turned into a single
         newline.
+
+        Except in the case of a raw string where this returns a simple string,
+        this returns a list of strings.
         """
 
         s = self.match(r'r?"""([^\\"]|\\.|"(?!""))*"""')
@@ -1039,6 +1071,9 @@ class Lexer(object):
         self.word_cache = rv
         self.word_cache_newpos = self.pos
 
+        if rv:
+            rv = sys.intern(rv)
+
         return rv
 
     def name(self):
@@ -1129,7 +1164,7 @@ class Lexer(object):
                 self.pos = oldpos
                 return None
 
-        if rv in KEYWORDS:
+        if (rv in KEYWORDS ) or (rv in IMAGE_KEYWORDS):
             self.pos = oldpos
             return None
 
@@ -1277,13 +1312,35 @@ class Lexer(object):
 
         return False
 
-    def simple_expression(self, comma=False, operator=True):
+    def simple_expression(self, comma=False, operator=True, image=False):
         """
         Tries to parse a simple_expression. Returns the text if it can, or
         None if it cannot.
+
+        If comma is True, then a comma is allowed to appear in the
+        expression.
+
+        If operator is True, then an operator is allowed to appear in
+        the expression.
+
+        If image is True, then the expression is being parsed as part of
+        an image, and so keywords that are special in the show/hide/scene
+        statements are not allowed.
         """
 
         start = self.pos
+
+        if image:
+            def lex_name():
+                oldpos = self.pos
+                n = self.name()
+                if n in IMAGE_KEYWORDS:
+                    self.pos = oldpos
+                    return None
+
+                return n
+        else:
+            lex_name = self.name
 
         # Operator.
         while True:
@@ -1297,7 +1354,7 @@ class Lexer(object):
             # We start with either a name, a python_string, or parenthesized
             # python
             if not (self.python_string() or
-                    self.name() or
+                    lex_name() or
                     self.float() or
                     self.parenthesised_python()):
 
@@ -1384,7 +1441,7 @@ class Lexer(object):
 
         return self.filename, self.number
 
-    def require(self, thing, name=None):
+    def require(self, thing, name=None, **kwargs):
         """
         Tries to parse thing, and reports an error if it cannot be done.
 
@@ -1397,10 +1454,14 @@ class Lexer(object):
             name = name or thing
             rv = self.match(thing)
         else:
-            name = name or thing.__func__.__name__
-            rv = thing()
+            rv = thing(**kwargs)
 
         if rv is None:
+            if isinstance(thing, basestring):
+                name = name or thing
+            else:
+                name = name or thing.__func__.__name__
+
             self.error("expected '%s' not found." % name)
 
         return rv
@@ -1427,6 +1488,20 @@ class Lexer(object):
         self.pos = len(self.text)
         return self.text[pos:].strip()
 
+    def _process_python_block(self, block, indent, rv, line_holder):
+        for _fn, ln, text, subblock in block:
+
+            while line_holder.line < ln:
+                rv.append(indent + '\n')
+                line_holder.line += 1
+
+            linetext = indent + text + '\n'
+
+            rv.append(linetext)
+            line_holder.line += linetext.count('\n')
+
+            self._process_python_block(subblock, indent + '    ', rv, line_holder)
+
     def python_block(self):
         """
         Returns the subblock of this code, and subblocks of that
@@ -1436,25 +1511,10 @@ class Lexer(object):
 
         rv = [ ]
 
-        o = LineNumberHolder()
-        o.line = self.number
+        line_holder = LineNumberHolder()
+        line_holder.line = self.number
 
-        def process(block, indent):
-
-            for _fn, ln, text, subblock in block:
-
-                while o.line < ln:
-                    rv.append(indent + '\n')
-                    o.line += 1
-
-                linetext = indent + text + '\n'
-
-                rv.append(linetext)
-                o.line += linetext.count('\n')
-
-                process(subblock, indent + '    ')
-
-        process(self.subblock, '')
+        self._process_python_block(self.subblock, '', rv, line_holder)
         return ''.join(rv)
 
     def arguments(self):
@@ -1528,7 +1588,7 @@ def ren_py_to_rpy(text, filename):
 
     `filename`
         If not None, and an error occurs, the error is reported with the given filename.
-        Otherwise, errors are ignored and a a best effort is used.
+        Otherwise, errors are ignored and a best effort is used.
     """
 
     lines = text.splitlines()

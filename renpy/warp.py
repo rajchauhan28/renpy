@@ -1,4 +1,4 @@
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -69,6 +69,9 @@ def warp():
 
     # This is called to indicate that next can be executed following node.
     def add(node, next):  # @ReservedAssignment
+
+        if next is None:
+            return
 
         if next not in prev:
             prev[next] = node

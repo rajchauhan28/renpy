@@ -2046,8 +2046,8 @@ translate korean strings:
     new "사용자 지정 테마"
 
     # game/preferences.rpy:256
-    old "Information about creating a custom theme can be found {a=https://www.renpy.org/doc/html/skins.html}in the Ren'Py Documentation{/a}."
-    new "사용자 지정 테마를 만드는 방법에 대한 정보는 {a=https://www.renpy.org/doc/html/skins.html}Ren'Py 문서{/a} 에서 확인할 수 있습니다."
+    old "Information about creating a custom theme can be found {a=[skins_url]}in the Ren'Py Documentation{/a}."
+    new "사용자 지정 테마를 만드는 방법에 대한 정보는 {a=[skins_url]}Ren'Py 문서{/a} 에서 확인할 수 있습니다."
 
     # game/preferences.rpy:273
     old "Install Libraries:"
@@ -2067,12 +2067,12 @@ translate korean strings:
     # game/preferences.rpy:338
     old "{#in language font}Welcome! Please choose a language"
     # Automatic translation.
-    new "{#in language font}환영합니다! 언어를 선택해 주세요."
+    new "{font=SourceHanSansLite.ttf}환영합니다! 언어를 선택해 주세요."
 
     # game/preferences.rpy:373
     old "{#in language font}Start using Ren'Py in [lang_name]"
     # Automatic translation.
-    new "{#in language font}다음에서 Ren'Py 사용 시작 [lang_name]"
+    new "{font=SourceHanSansLite.ttf}다음에서 Ren'Py 사용 시작 [lang_name]"
 
     # game/project.rpy:46
     old "Lint checks your game for potential mistakes, and gives you statistics."
@@ -2155,4 +2155,3 @@ translate korean strings:
     old "A nightly build of fixes to the release version of Ren'Py."
     # Automatic translation.
     new "Ren'Py 릴리스 버전에 대한 수정 사항이 포함된 야간 빌드입니다."
-

@@ -156,12 +156,8 @@ init -1500 python in _console:
                 s = s[:i] + self._ellipsis + s[len(s) - i:]
             return s
 
-        if PY2:
-            repr_str = _repr_bytes
-            repr_unicode = _repr_string
-        else:
-            repr_bytes = _repr_bytes
-            repr_str = _repr_string
+        repr_bytes = _repr_bytes
+        repr_str = _repr_string
 
         def repr_tuple(self, x, level):
             if not x: return "()"
@@ -212,7 +208,7 @@ init -1500 python in _console:
 
             if level <= 0: return "{...}"
 
-            iter_keys = self._to_shorted_list(x, self.maxdict, sort=PY2)
+            iter_keys = self._to_shorted_list(x, self.maxdict, sort=False)
             iter_x = self._make_pretty_items(x, iter_keys, '{', '}')
             return self._repr_iterable(iter_x, level, '{', '}')
 
@@ -227,7 +223,7 @@ init -1500 python in _console:
 
             if level <= 0: return left + "...})"
 
-            iter_keys = self._to_shorted_list(x, self.maxdict, sort=PY2)
+            iter_keys = self._to_shorted_list(x, self.maxdict, sort=False)
             iter_x = self._make_pretty_items(x, iter_keys, left, '})')
             return self._repr_iterable(iter_x, level, left, '})')
 
@@ -520,6 +516,7 @@ init -1500 python in _console:
                 self.line_history.extend(persistent._console_line_history)
 
             self.first_time = True
+            self.did_short_warning = False
 
             self.reset()
 
@@ -593,7 +590,7 @@ init -1500 python in _console:
                     else:
                         break
 
-                if s.rstrip().endswith(":"):
+                if s.partition("#")[0].rstrip().endswith(":"):
                     rv += "    "
 
                 if not s.rstrip():
@@ -612,7 +609,7 @@ init -1500 python in _console:
             self.lines.append(line)
 
             indent = get_indent(line)
-            if indent:
+            if indent or line.startswith("@") or line.endswith("\\"):
                 self.lines.append(indent)
                 return
 
@@ -701,7 +698,6 @@ init -1500 python in _console:
                 # Try to run it as Ren'Py.
                 if self.can_renpy():
 
-                    # TODO: Can we run Ren'Py code?
                     name = renpy.load_string(code + "\nreturn")
 
                     if name is not None:
@@ -717,8 +713,12 @@ init -1500 python in _console:
                     pass
                 else:
                     result = renpy.python.py_eval(code)
-                    if persistent._console_short:
+                    if persistent._console_short and not getattr(result, "_console_always_long", False):
                         he.result = aRepr.repr(result)
+
+                        if not self.did_short_warning and he.result != repr(result):
+                            self.did_short_warning = True
+                            he.result += "\n\n" + __("The console is using short representations. To disable this, type 'long', and to re-enable, type 'short'")
                     else:
                         he.result = repr(result)
 
@@ -1055,6 +1055,7 @@ screen _console:
     #    Indentation to apply to the new line.
     # history
     #    A list of command, result, is_error tuples.
+    layer config.interface_layer
     zorder 1500
     modal True
 
@@ -1103,21 +1104,25 @@ screen _console:
 
             has vbox
 
+            $ last_line = ""
+
             for line in lines:
                 hbox:
                     spacing 4
 
-                    if line[:1] != " ":
+                    if (line[:1] != " ") and (last_line[:1] != "@") and (last_line[-1:] != "\\"):
                         text "> " style "_console_prompt"
                     else:
                         text "... " style "_console_prompt"
 
                     text "[line!q]" style "_console_input_text"
 
+                $ last_line = line
+
             hbox:
                 spacing 4
 
-                if default[:1] != " ":
+                if (default[:1] != " ") and (last_line[:1] != "@") and (last_line[-1:] != "\\"):
                     text "> " style "_console_prompt"
                 else:
                     text "... " style "_console_prompt"
@@ -1133,6 +1138,7 @@ default _console.traced_expressions = _console.TracedExpressionsList()
 
 screen _trace_screen():
 
+    layer config.interface_layer
     zorder 1501
 
     if _console.traced_expressions:

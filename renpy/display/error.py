@@ -1,4 +1,4 @@
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -59,8 +59,6 @@ def init_display():
     """
     The minimum amount of code required to init the display.
     """
-
-    renpy.config.gl2 = getattr(renpy.game.persistent, "_gl2", True)
 
     # Ensure we have correctly-typed preferences.
     renpy.game.preferences.check()
@@ -151,6 +149,9 @@ def report_exception(short, full, traceback_fn):
 
         if renpy.store._ignore_action is not None:
             renpy.display.behavior.run(renpy.store._ignore_action)
+
+        renpy.config.raise_image_exceptions = False
+        renpy.config.raise_image_load_exceptions = False
 
     except renpy.game.CONTROL_EXCEPTIONS:
         raise

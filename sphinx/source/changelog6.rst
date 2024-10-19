@@ -44,7 +44,7 @@ by adding to the bottom of gui.rpy::
     define gui.slot_button_text_selected_idle_color = gui.selected_color
     define gui.slot_button_text_selected_hover_color = gui.hover_color
 
-A problem introduced in 6.99.14.2 with the the default statement
+A problem introduced in 6.99.14.2 with the default statement
 not working after a rollback has been fixed. This should only ever
 have affected games that were updated after a save was first
 created.
@@ -3058,7 +3058,7 @@ Other Changes
 -------------
 
 * :ref:`Viewports <sl-viewport>` now support edge scrolling, which scrolls
-  the viewport when the mouse is within a a configurable distance of the
+  the viewport when the mouse is within a configurable distance of the
   viewport edge.
 
 * Most keyboard keys now automatically repeat. The repeat rate is controlled
@@ -4015,7 +4015,7 @@ transition. These take two displayables, and use the alpha channel of a third
 displayable to blend them together. (The third displayable is often an
 animation, allowing the effect to change over time.)
 
-The new :doc:`modes` system allows one to invoke callbacks when switching from
+The new modes system allows one to invoke callbacks when switching from
 one type of interaction to another. This can be used, for example, to
 automatically hide the window before transitions.
 

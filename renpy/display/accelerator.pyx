@@ -1,5 +1,5 @@
 #cython: profile=False
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -112,17 +112,28 @@ IDENTITY = renpy.display.render.IDENTITY
 # The distance to the 1:1 plan, in the current perspective.
 z11 = 0.0
 
-def relative(n, base, limit):
+def relative_for_crop(n, base, limit):
     """
-    A utility function that converts a relative value to an absolute value,
-    using the usual Ren'Py conventions (int and absolute are passed unchanged,
-    while a float is interpreted as a fraction of the limit).
+    A utility function that converts position values to absolute values, using
+    the usual Ren'Py conversion, and then optionally applies the pre-8.3
+    limit_transform_crop setting.
     """
 
-    if isinstance(n, (int, absolute)):
+    ltc = renpy.config.limit_transform_crop
+
+    if ltc == "only_float" and isinstance(n, (int, absolute)):
+        # before 8.2 / 7.7
         return n
+
+    rv = int(absolute.compute_raw(n, base))
+
+    if ltc:
+        # 8.2 / 7.7
+        return min(rv, limit)
+
     else:
-        return min(int(n * base), limit)
+        # 8.3 / 7.8 +
+        return rv
 
 cdef class RenderTransform:
     """
@@ -232,7 +243,7 @@ cdef class RenderTransform:
         else:
             mr.mesh = True
 
-        if blur is not None:
+        if (blur is not None) and (blur > 0):
             mr.add_shader("-renpy.texture")
             mr.add_shader("renpy.blur")
             mr.add_uniform("u_renpy_blur_log2", math.log(blur, 2))
@@ -322,25 +333,39 @@ cdef class RenderTransform:
 
         if crop is not None:
 
+            x, y, w, h = crop
+
             if crop_relative:
-                x, y, w, h = crop
 
-                x = relative(x, width, width)
-                y = relative(y, height, height)
-                w = relative(w, width, width - x)
-                h = relative(h, height, height - y)
+                x = relative_for_crop(x, width, width)
+                y = relative_for_crop(y, height, height)
+                w = relative_for_crop(w, width, width - x)
+                h = relative_for_crop(h, height, height - y)
 
-                crop = (x, y, w, h)
+            else:
+
+                x = relative_for_crop(x, 1, width)
+                y = relative_for_crop(y, 1, height)
+                w = relative_for_crop(w, 1, width - x)
+                h = relative_for_crop(h, 1, height - y)
+
+            crop = (x, y, w, h)
+
 
         if (self.state.corner1 is not None) and (crop is None) and (self.state.corner2 is not None):
             x1, y1 = self.state.corner1
             x2, y2 = self.state.corner2
 
             if crop_relative:
-                x1 = relative(x1, width, width)
-                y1 = relative(y1, height, height)
-                x2 = relative(x2, width, width)
-                y2 = relative(y2, height, height)
+                x1 = relative_for_crop(x1, width, width)
+                y1 = relative_for_crop(y1, height, height)
+                x2 = relative_for_crop(x2, width, width)
+                y2 = relative_for_crop(y2, height, height)
+            else:
+                x1 = relative_for_crop(x1, 1, width)
+                y1 = relative_for_crop(y1, 1, height)
+                x2 = relative_for_crop(x2, 1, width)
+                y2 = relative_for_crop(y2, 1, height)
 
             if x1 > x2:
                 x3 = x1
@@ -392,13 +417,11 @@ cdef class RenderTransform:
         ysize = state.ysize
 
         if xsize is not None:
-            if (type(xsize) is float) and renpy.config.relative_transform_size:
-                xsize *= self.widtho
+            xsize = absolute.compute_raw(xsize, self.widtho if renpy.config.relative_transform_size else 1 )
             self.widtho = xsize
 
         if ysize is not None:
-            if (type(ysize) is float) and renpy.config.relative_transform_size:
-                ysize *= self.heighto
+            ysize = absolute.compute_raw(ysize, self.heighto if renpy.config.relative_transform_size else 1)
             self.heighto = ysize
 
         self.cr = render(child, self.widtho, self.heighto, st - self.transform.child_st_base, at)
@@ -690,6 +713,9 @@ cdef class RenderTransform:
                 ypoi = math.degrees(ypoi)
                 zpoi = math.degrees(zpoi)
 
+        if xplacement or yplacement or state.zpos:
+            self.reverse = Matrix.offset(-xplacement, -yplacement, -state.zpos) * self.reverse
+
         if poi or orientation or xyz_rotate:
             m = Matrix.offset(-width / 2, -height / 2, -z11)
 
@@ -706,9 +732,6 @@ cdef class RenderTransform:
             m = Matrix.offset(width / 2, height / 2, z11) * m
 
             self.reverse = m * self.reverse
-
-        if xplacement or yplacement or state.zpos:
-            self.reverse = Matrix.offset(-xplacement, -yplacement, -state.zpos) * self.reverse
 
         if state.rotate is not None:
             m = Matrix.offset(-width / 2, -height / 2, 0.0)
@@ -753,12 +776,7 @@ cdef class RenderTransform:
                 manchory = height / 2.0
 
             else:
-                manchorx, manchory = state.matrixanchor
-
-                if type(manchorx) is float:
-                    manchorx *= width
-                if type(manchory) is float:
-                    manchory *= height
+                manchorx, manchory = map(absolute.compute_raw, state.matrixanchor, (width, height))
 
             m = Matrix.offset(-manchorx, -manchory, 0.0)
 
@@ -817,15 +835,17 @@ cdef class RenderTransform:
 
         state = self.state
 
-        mt = state.matrixtransform
+        matrix_object = state.matrixtransform
 
-        if mt is not None:
+        if matrix_object is not None:
 
-            if callable(mt):
-                mt = mt(None, 1.0)
+            if callable(matrix_object):
+                matrix_object = matrix_object(None, 1.0)
 
-            if not isinstance(mt, renpy.display.matrix.Matrix):
-                raise Exception("matrixtransform requires a Matrix (got %r)" % (mt,))
+            if not isinstance(matrix_object, renpy.display.matrix.Matrix):
+                raise Exception("matrixtransform requires a Matrix (got %r)" % (matrix_object,))
+
+            mt = matrix_object
 
             if state.matrixanchor is None:
 
@@ -833,12 +853,7 @@ cdef class RenderTransform:
                 manchory = self.height / 2.0
 
             else:
-                manchorx, manchory = state.matrixanchor
-
-                if type(manchorx) is float:
-                    manchorx *= self.width
-                if type(manchory) is float:
-                    manchory *= self.height
+                manchorx, manchory = map(absolute.compute_raw, state.matrixanchor, (self.width, self.height))
 
             m = Matrix.offset(-manchorx, -manchory, 0.0)
             m = mt * m
@@ -1030,7 +1045,9 @@ cdef class RenderTransform:
 
         pos = (self.xo, self.yo)
 
-        if state.subpixel:
+        if state.alpha <= 0.0:
+            rv.depends_on(self.cr, focus=True)
+        elif state.subpixel:
             rv.subpixel_blit(self.cr, pos)
         else:
             rv.blit(self.cr, pos)

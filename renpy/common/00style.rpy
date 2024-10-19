@@ -1,4 +1,4 @@
-﻿# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -165,11 +165,15 @@ init -1800:
         slow_cps None
         slow_cps_multiplier 1.0
         slow_abortable False
+        ruby_line_leading 0
         ruby_style style.ruby_text
         altruby_style style.altruby_text
         # hyperlink_functions is set in 00defaults.rpy
-        hinting "auto"
+        hinting True
         adjust_spacing True
+        emoji_font "TwemojiCOLRv0.ttf"
+        prefer_emoji True
+        shaper "harfbuzz"
 
         # Window properties
         background None
@@ -204,6 +208,8 @@ init -1800:
         # Box properties
         spacing 0
         first_spacing None
+        box_align None
+        box_justify False
         box_layout None
         box_wrap False
         box_wrap_spacing 0

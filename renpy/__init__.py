@@ -1,4 +1,4 @@
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -223,7 +223,6 @@ backup_blacklist = {
     "renpy.test.testmouse",
     "renpy.test.testparser",
     "renpy.gl2",
-    "renpy.gl",
     "renpycoverage",
     }
 
@@ -277,9 +276,6 @@ class Backup(_object):
 
         # A map from module to the set of names in that module.
         self.names = { }
-
-        if mobile:
-            return
 
         for m in sys.modules.values():
             if m is None:
@@ -408,12 +404,10 @@ def import_all():
     # Adds in the Ren'Py loader.
     import renpy.loader
 
-    if not PY2:
-        import renpy.py3analysis
-    else:
-        import renpy.py2analysis
-
     import renpy.pyanalysis
+    sys.modules["renpy.py3analysis"] = renpy.pyanalysis
+
+    import renpy.parameter
 
     import renpy.ast
     import renpy.atl
@@ -466,6 +460,7 @@ def import_all():
     import renpy.display.render
     import renpy.display.displayable
     import renpy.display.core
+    import renpy.display.scenelists
     import renpy.display.swdraw
 
     import renpy.text
@@ -476,10 +471,10 @@ def import_all():
     import renpy.text.texwrap
     import renpy.text.text
     import renpy.text.extras
+    import renpy.text.shader
 
     sys.modules[pystr('renpy.display.text')] = renpy.text.text
 
-    import renpy.gl
     import renpy.gl2
 
     import renpy.display.layout
@@ -519,6 +514,7 @@ def import_all():
     import renpy.audio.audio
     import renpy.audio.music
     import renpy.audio.sound
+    import renpy.audio.filter
 
     import renpy.ui
     import renpy.screenlang
@@ -571,8 +567,7 @@ def import_all():
 
     global backup
 
-    if not mobile:
-        backup = Backup()
+    backup = Backup()
 
     post_import()
 
@@ -618,8 +613,8 @@ def reload_all():
     returned.
     """
 
-    if mobile:
-        raise Exception("Reloading is not supported on mobile platforms.")
+    # if mobile:
+    #     raise Exception("Reloading is not supported on mobile platforms.")
 
     import renpy
 
@@ -717,12 +712,11 @@ if 1 == 0:
     from . import memory
     from . import minstore
     from . import object
+    from . import parameter
     from . import parser
     from . import performance
     from . import persistent
     from . import preferences
-    from . import py2analysis
-    from . import py3analysis
     from . import pyanalysis
     from . import pydict
     from . import python
@@ -743,6 +737,7 @@ if 1 == 0:
     from . import translation
     from . import uguu
     from . import ui
+    from . import update
     from . import util
     from . import vc_version
     from . import versions

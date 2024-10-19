@@ -1,4 +1,4 @@
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -134,7 +134,7 @@ style_properties = sorted_dict(
     alt=None,
     altruby_style=None,
     antialias=None,
-    vertical=None,
+    axis=None,
     background='renpy.easy.displayable_or_none',
     bar_invert=None,
     bar_resizing=None,
@@ -144,6 +144,8 @@ style_properties = sorted_dict(
     bold=None,
     bottom_margin=None,
     bottom_padding=None,
+    box_align=None,
+    box_justify=None,
     box_layout=None,
     box_reverse=None,
     box_wrap=None,
@@ -155,6 +157,8 @@ style_properties = sorted_dict(
     debug=None,
     drop_shadow=None,
     drop_shadow_color='renpy.easy.color',
+    emoji_font=None,
+    extra_alt=None,
     first_indent=None,
     first_spacing=None,
     fit_first=None,
@@ -164,14 +168,17 @@ style_properties = sorted_dict(
     fore_bar='none_is_null',
     fore_gutter=None,
     foreground='renpy.easy.displayable_or_none',
+    group_alt=None,
     hinting=None,
     hover_sound=None,
     hyperlink_functions=None,
     italic=None,
+    instance=None,
     justify=None,
     kerning=None,
     key_events=None,
     keyboard_focus=None,
+    keyboard_focus_insets=None,
     language=None,
     layout=None,
     line_leading=None,
@@ -187,10 +194,13 @@ style_properties = sorted_dict(
     order_reverse=None,
     outlines='expand_outlines',
     outline_scaling=None,
+    prefer_emoji=None,
     rest_indent=None,
     right_margin=None,
     right_padding=None,
+    ruby_line_leading=None,
     ruby_style=None,
+    shaper=None,
     size=None,
     size_group=None,
     slow_abortable=None,
@@ -200,6 +210,7 @@ style_properties = sorted_dict(
     strikethrough=None,
     subtitle_width=None,
     subpixel=None,
+    textshader=None,
     text_y_fudge=None,
     text_align=None,
     thumb='none_is_null',
@@ -209,6 +220,7 @@ style_properties = sorted_dict(
     top_margin=None,
     top_padding=None,
     underline=None,
+    vertical=None,
     xanchor='expand_anchor',
     xfill=None,
     xfit=None,
@@ -250,7 +262,7 @@ style_property_count = len(style_properties)
 #     style_property_count, PREFIX_COUNT, style_property_count * PREFIX_COUNT))
 
 # Special priority properties - these take a +1 compared to others. Generally,
-# these would be listed in the tuples in synthetic_properies, below.
+# these would be listed in the tuples in synthetic_properties, below.
 property_priority = sorted_dict(
     left_margin=1,
     top_margin=1,

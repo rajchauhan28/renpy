@@ -1,4 +1,4 @@
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -103,7 +103,11 @@ def prediction_coroutine(root_widget):
 
     # Predict displayables given to renpy.start_predict.
     for d in renpy.store._predict_set:
-        displayable(d)
+        try:
+            displayable(d)
+        except Exception:
+            if renpy.config.debug_prediction:
+                raise
 
         predicting = False
         yield True

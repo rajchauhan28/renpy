@@ -1,4 +1,4 @@
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -407,11 +407,7 @@ cdef class Live2DModel:
             0, 0, 1, 0,
             0, 0, 0, 1, ])
 
-        forward = Matrix([
-            invppu, 0, 0, invppu,
-            0, -invppu, 0, invppu,
-            0, 0, 1, 0,
-            0, 0, 0, 1, ])
+        forward = reverse.inverse()
 
         rv = Render(w, h)
 
@@ -437,7 +433,9 @@ cdef class Live2DModel:
             memcpy(mesh.attribute, self.drawable_vertex_uvs[i], sizeof(float) * mesh.points * 2)
 
             mesh.triangles = self.drawable_index_counts[i] // 3
-            memcpy(mesh.triangle, self.drawable_indices[i],  sizeof(unsigned short) * mesh.triangles * 3)
+
+            for 0 <= j < mesh.triangles * 3:
+                mesh.triangle[j] = self.drawable_indices[i][j]
 
             tex = textures[self.drawable_texture_indices[i]]
 

@@ -1,4 +1,4 @@
-﻿# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -81,11 +81,7 @@ init python:
 
 label install_live2d:
     python hide:
-
-        if PY2:
-            _prefix = r"lib/py2-"
-        else:
-            _prefix = r"lib/py3-"
+        _prefix = r"lib/py3-"
 
         patterns = [
             (r".*/Core/dll/linux/x86_64/(libLive2DCubismCore.so)", _prefix + r"linux-x86_64/\1"),
@@ -98,7 +94,7 @@ label install_live2d:
             (r".*/Core/dll/android/(x86_64/libLive2DCubismCore.so)", r"rapt/prototype/renpyandroid/src/main/jniLibs/\1"),
         ]
 
-        install_from_zip("Live2D Cubism SDK for Native", "CubismSdkForNative-4-*.zip", patterns)
+        install_from_zip("Live2D Cubism SDK for Native", "CubismSdkForNative-[45]-*.zip", patterns)
 
     jump front_page
 
@@ -179,7 +175,7 @@ screen install_live2d():
                             style "l_indent"
                             has vbox
 
-                            text _("The {a=https://www.live2d.com/en/download/cubism-sdk/download-native/}Cubism SDK for Native{/a} adds support for displaying Live2D models. Place CubismSdkForNative-4-{i}version{/i}.zip in the Ren'Py SDK directory, and then click Install. Distributing a game with Live2D requires you to accept a license from Live2D, Inc.")
+                            text _("The {a=https://www.live2d.com/en/download/cubism-sdk/download-native/}Cubism SDK for Native{/a} adds support for displaying Live2D models. Place CubismSdkForNative-{i}version{/i}.zip in the Ren'Py SDK directory, and then click Install. Distributing a game with Live2D requires you to accept a license from Live2D, Inc.")
 
                             add SPACER
 

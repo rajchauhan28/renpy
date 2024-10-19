@@ -1,4 +1,4 @@
-﻿# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -198,7 +198,7 @@ init python:
         c.save(p.path)
 
 
-    def android_build(p=None, gui=True, bundle=False, install=False, launch=False, destination=None, opendir=False):
+    def android_build(p=None, gui=True, bundle=False, install=False, launch=False, destination=None, opendir=False, packages=None):
         """
         This actually builds the package.
         """
@@ -220,9 +220,12 @@ init python:
             reporter = distribute.TextReporter()
             rapt_interface = rapt.interface.Interface()
 
+        if not packages:
+            packages = ['android']
+
         distribute.Distributor(p,
             reporter=reporter,
-            packages=[ 'android' ],
+            packages=packages,
             build_update=False,
             noarchive=True,
             packagedest=dist,
@@ -278,7 +281,16 @@ init python:
 
 
         with interface.nolinks():
-            rapt.build.build(rapt_interface, dist, p.path, bundle=bundle, install=install, launch=launch, finished=finished, permissions=p.dump['build']['android_permissions'])
+            rapt.build.build(
+                rapt_interface,
+                dist,
+                p.path,
+                bundle=bundle,
+                install=install,
+                launch=launch,
+                finished=finished,
+                permissions=p.dump['build']['android_permissions'],
+                version=p.dump['build']['version'])
 
 
     def android_build_argument(cmd):
@@ -702,6 +714,7 @@ init python:
         ap.add_argument("--install", action="store_true", help="Installs the app on a device.")
         ap.add_argument("--launch", action="store_true", help="Launches the app after build and install complete. Implies --install.")
         ap.add_argument("--destination", "--dest", default=None, action="store", help="The directory where the packaged files should be placed.")
+        ap.add_argument("--package", action="append", help="If given, a package to build. Defaults to building the 'android' package.")
 
         args = ap.parse_args()
 
@@ -710,7 +723,12 @@ init python:
 
         p = project.Project(args.android_project)
 
-        android_build(p=p, gui=False, bundle=args.bundle, install=args.install, launch=args.launch, destination=args.destination)
+        if args.package:
+            packages = args.package
+        else:
+            packages = None
+
+        android_build(p=p, gui=False, bundle=args.bundle, install=args.install, launch=args.launch, destination=args.destination, packages=packages)
 
         return False
 

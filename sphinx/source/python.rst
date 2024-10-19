@@ -173,7 +173,7 @@ operator adds, and is generally used for list concatenaton. The ``|=``
 or operator is generally used to concatenate sets. For example::
 
     define config.keymap["dismiss"] += [ "K_KP_PLUS" ]
-    define endings |= { "best_ending }
+    define endings |= { "best_ending" }
 
 One advantage of using the define statement is that it records the
 filename and line number at which the assignment occurred, and
@@ -374,16 +374,16 @@ and packages – ones written for the game – can be placed directly
 into the game directory. Third party packages can be placed into the
 game/python-packages directory.
 
-For example, to install the requests package, one can change into the
+For example, to install the python-dateutil package, one can change into the
 game's base directory, and run the command::
 
-    pip install --target game/python-packages requests
+    pip install --target game/python-packages python-dateutil
 
 In either case, the module or package can be imported from an init python
 block::
 
     init python:
-        import requests
+        import dateutil.parser
 
 .. warning::
 
@@ -391,3 +391,24 @@ block::
     to work. Python imported from .py files is not. As a result,
     objects created in Python will not work with rollback, and
     probably should not be changed after creation.
+
+    Not all Python packages are compatible with Ren'Py. It's up to you
+    to audit the packages you install and make sure the packages will
+    work.
+
+
+.. _exec_py:
+
+Injecting Python
+----------------
+
+Python can be injected into a game at runtime by creating a file named
+``exec.py`` in the base directory. It's suggested that this file is created
+under a different name, edited, and then atomically moved into place.
+
+When Ren'Py sees a file named ``exec.py``, it will load the contents of the file,
+delete the file, and execute the contents in the game store using Python's
+``exec``. This is always done during an interaction.
+
+This is intended to support debugging tools. By default it is enabled when developer
+mode is true, but can also be enabled by setting the RENPY_EXEC_PY environment variable.

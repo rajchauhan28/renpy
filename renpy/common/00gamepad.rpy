@@ -1,4 +1,4 @@
-﻿# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -20,6 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 screen _gamepad_select(joysticks):
+    layer config.interface_layer
 
     modal True
     style_group ""
@@ -42,6 +43,7 @@ screen _gamepad_select(joysticks):
         textbutton _("Cancel") action Return("cancel")
 
 screen _gamepad_control(name, control, kind, mappings, back, i, total):
+    layer config.interface_layer
 
     modal True
     style_group ""
@@ -74,6 +76,9 @@ screen _gamepad_control(name, control, kind, mappings, back, i, total):
 
 
 init -1200 python in _gamepad:
+    # Do not participate in saves.
+    _constant = True
+
     from pygame_sdl2 import JOYHATMOTION, JOYAXISMOTION, JOYBUTTONDOWN
     import pygame_sdl2
     import os
@@ -256,6 +261,9 @@ init -1200 python:
             Forces this function to always return true while :var:`config.developer`
             is true.
         """
+
+        if developer and config.developer:
+            return True
 
         return renpy.display.controller.exists()
 

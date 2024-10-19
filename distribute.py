@@ -252,7 +252,7 @@ def main():
             "-q",
             "egg_info",
             "--tag-build",
-            "-for-renpy-" + args.version,
+            "+renpy" + args.version.replace("+", "-"),
             "sdist",
             "-d",
             os.path.abspath(destination)

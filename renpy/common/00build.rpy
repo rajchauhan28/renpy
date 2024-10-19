@@ -1,4 +1,4 @@
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -23,8 +23,10 @@
 # distributions.
 
 init -1500 python in build:
+    # Do not participate in saves.
+    _constant = True
 
-    from store import config
+    from store import config, store
 
     import sys, os
 
@@ -61,23 +63,13 @@ init -1500 python in build:
 
     renpy_sh = "renpy.sh"
 
-    if PY2:
-        renpy_patterns = pattern_list([
-            ("renpy/**.pyo", "all"),
-            ("renpy/**__pycache__", None),
-        ])
+    renpy_patterns = pattern_list([
+        ("renpy/**__pycache__/**.{}.pyc".format(sys.implementation.cache_tag), "all"),
+        ("renpy/**__pycache__", "all"),
+    ])
 
-        if os.path.exists(os.path.join(config.renpy_base, "renpy2.sh")):
-            renpy_sh = "renpy2.sh"
-
-    else:
-        renpy_patterns = pattern_list([
-            ("renpy/**__pycache__/**.{}.pyc".format(sys.implementation.cache_tag), "all"),
-            ("renpy/**__pycache__", "all"),
-        ])
-
-        if os.path.exists(os.path.join(config.renpy_base, "renpy3.sh")):
-            renpy_sh = "renpy3.sh"
+    if os.path.exists(os.path.join(config.renpy_base, "renpy3.sh")):
+        renpy_sh = "renpy3.sh"
 
 
     # Patterns that are used to classify Ren'Py.
@@ -88,6 +80,8 @@ init -1500 python in build:
         ( "**.old", None),
         ( "**.new", None),
         ( "**.rpa", None),
+        ( "**.rpe", None),
+        ( "**.rpe.py", None),
 
         ( "**/steam_appid.txt", None),
 
@@ -119,7 +113,7 @@ init -1500 python in build:
         ( "lib/*/pythonw.exe", None),
 
         # Ignore the wrong Python.
-        ( "lib/py3-*/" if PY2 else "lib/py2-*/", None),
+        ( "lib/py2-*/", None),
 
         # Windows patterns.
         ( "lib/py*-windows-i686/**", "windows_i686"),
@@ -135,7 +129,7 @@ init -1500 python in build:
         ( "lib/py*-mac-*/**", "mac"),
 
         # Old Python library.
-        ( "lib/python3.*/**" if PY2 else "lib/python2.*/**", None),
+        ( "lib/python2.*/**", None),
 
         # Shared patterns.
         ( "lib/**", "windows linux mac android ios"),
@@ -159,6 +153,10 @@ init -1500 python in build:
         ("*.dll", None),
         ("*.manifest", None),
         ("*.keystore", None),
+        ( "**.rpe", None),
+        ( "**.rpe.py", None),
+
+        ("update.pem", None),
 
         ("lib/", None),
         ("renpy/", None),
@@ -167,6 +165,7 @@ init -1500 python in build:
         ("update/", None),
 
         ("old-game/", None),
+        ("base/", None),
 
         ("icon.ico", None),
         ("icon.icns", None),
@@ -207,6 +206,7 @@ init -1500 python in build:
         ("web-presplash.png", "web"),
         ("web-presplash.jpg", "web"),
         ("web-presplash.webp", "web"),
+        ("web-icon.png", "web"),
         ("progressive_download.txt", "web"),
 
         ("steam_appid.txt", None),
@@ -214,6 +214,9 @@ init -1500 python in build:
         ("game/" + renpy.script.BYTECODE_FILE, "all"),
         ("game/cache/bytecode-311.rpyb", "web"),
         ("game/cache/bytecode-*.rpyb", None),
+        ("game/cache/build_info.json", None),
+        ("game/cache/build_time.txt", None),
+
     ])
 
 
@@ -322,7 +325,7 @@ init -1500 python in build:
 
     packages = [ ]
 
-    def package(name, format, file_lists, description=None, update=True, dlc=False, hidden=False):
+    def package(name, format, file_lists, description=None, update=True, dlc=False, hidden=False, update_only=False):
         """
         :doc: build
 
@@ -359,6 +362,8 @@ init -1500 python in build:
             bare-tar.bz2
                 A zip file without :var:`build.directory_name`
                 prepended.
+            null
+                Used to produce only updates, without the main package.
 
             The empty string will not build any package formats (this
             makes dlc possible).
@@ -386,7 +391,7 @@ init -1500 python in build:
         formats = format.split()
 
         for i in formats:
-            if i not in [ "zip", "app-zip", "tar.bz2", "directory", "dmg", "app-directory", "app-dmg", "bare-zip", "bare-tar.bz2" ]:
+            if i not in { "zip", "app-zip", "tar.bz2", "directory", "dmg", "app-directory", "app-dmg", "bare-zip", "bare-tar.bz2", "null" }:
                 raise Exception("Format {} not known.".format(i))
 
         if description is None:
@@ -407,11 +412,14 @@ init -1500 python in build:
 
         packages.append(d)
 
+    package("gameonly", "null", "all", "Game-Only Update for Mobile", hidden=True)
+
     package("pc", "zip", "windows linux renpy all", "PC: Windows and Linux")
     package("linux", "tar.bz2", "linux linux_arm renpy all", "Linux")
     package("mac", "app-zip app-dmg", "mac renpy all", "Macintosh")
     package("win", "zip", "windows renpy all", "Windows")
     package("market", "bare-zip", "windows linux mac renpy all", "Windows, Mac, Linux for Markets")
+
     package("steam", "zip", "windows linux mac renpy all", hidden=True)
     package("android", "directory", "android all", hidden=True, update=False, dlc=True)
     package("ios", "directory", "ios all", hidden=True, update=False, dlc=True)
@@ -506,9 +514,24 @@ init -1500 python in build:
     # Should the sdk-fonts directory be renamed to game?
     _sdk_fonts = False
 
+    # Which update formats should be built?
+    update_formats = [ "rpu" ]
+
+    # Should the gameonly update be available?
+    game_only_update = False
+
+    # The time at which the game was built.
+    time = store.renpy.game.build_info.get("time", None)
+
+    # Information about the game that is stored in cache/build_info.json.
+    info = store.renpy.game.build_info.get("info", { })
+
     # This function is called by the json_dump command to dump the build data
     # into the json file.
     def dump():
+        import time
+
+        global include_update
 
         rv = { }
 
@@ -528,6 +551,14 @@ init -1500 python in build:
             excludes.extend([
                 ( "lib/**/_ssl.*", None),
             ])
+
+        if game_only_update:
+
+            include_update = True
+
+            for i in packages:
+                if i["name"] == "gameonly":
+                    i["hidden"] = False
 
         rv["directory_name"] = directory_name
         rv["executable_name"] = executable_name
@@ -589,7 +620,17 @@ init -1500 python in build:
 
         rv["_sdk_fonts"] = _sdk_fonts
 
+        rv["update_formats"] = update_formats
+
+        rv["info"] = {
+            "info" : info,
+            "time" : time.time(),
+            "name" : config.name,
+            "version" : config.version,
+            }
+
         return rv
+
 
 init 1500 python in build:
 

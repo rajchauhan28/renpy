@@ -1,4 +1,4 @@
-# Copyright 2004-2023 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2024 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -116,7 +116,7 @@ def parse_clause(l, loc):
 
     elif l.keyword("label"):
 
-        name = l.require(l.name)
+        name = l.require(l.label_name)
         return testast.Label(loc, name)
 
     elif l.keyword("type"):
