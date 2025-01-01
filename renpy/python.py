@@ -50,6 +50,8 @@ import warnings
 
 import renpy
 
+from renpy.pythonsupport import hash_fnv1a
+
 # Import these for pickle-compatibility.
 from renpy.revertable import (
     CompressedList, DetRandom, RevertableDict,
@@ -509,7 +511,7 @@ class WrapNode(ast.NodeTransformer):
                     kw_defaults=[ ],
                     defaults=[ ],
                 ),
-                body=node,
+                body=node,  # type: ignore
             ),
             args=call_args,
             keywords=[ ],
@@ -662,111 +664,111 @@ class WrapNode(ast.NodeTransformer):
 
         return node
 
-    def visit_Assign(self, n):
-        n = self.generic_visit(n)
-        return self.wrap_starred_assign(n, n.targets) # type: ignore
+    def visit_Assign(self, node: ast.Assign):
+        node = self.generic_visit(node)  # type: ignore
+        return self.wrap_starred_assign(node, node.targets)
 
-    def visit_AnnAssign(self, n):
-        n = self.generic_visit(n)
-        return self.wrap_starred_assign(n, [ n.target ]) # type: ignore
+    def visit_AnnAssign(self, node: ast.AnnAssign):
+        node = self.generic_visit(node)  # type: ignore
+        return self.wrap_starred_assign(node, [node.target])
 
-    def visit_For(self, n):
-        n = self.generic_visit(n)
-        return self.wrap_starred_for(n)
+    def visit_For(self, node):
+        node = self.generic_visit(node)
+        return self.wrap_starred_for(node)
 
-    def visit_AsyncFor(self, n):
-        n = self.generic_visit(n)
-        return self.wrap_starred_for(n)
+    def visit_AsyncFor(self, node):
+        node = self.generic_visit(node)
+        return self.wrap_starred_for(node)
 
-    def visit_With(self, n):
-        n = self.generic_visit(n)
-        return self.wrap_starred_with(n)
+    def visit_With(self, node):
+        node = self.generic_visit(node)
+        return self.wrap_starred_with(node)
 
-    def visit_AsyncWith(self, n):
-        n = self.generic_visit(n)
-        return self.wrap_starred_with(n)
+    def visit_AsyncWith(self, node):
+        node = self.generic_visit(node)
+        return self.wrap_starred_with(node)
 
-    def visit_ClassDef(self, n):
-        n = self.generic_visit(n)
+    def visit_ClassDef(self, node: ast.ClassDef):
+        node = self.generic_visit(node)  # type: ignore
 
-        if not n.bases: # type: ignore
-            n.bases.append(ast.Name(id="object", ctx=ast.Load())) # type: ignore
+        # This will force the class to inherit from RevertableObject.
+        if not node.bases:
+            node.bases.append(ast.Name(id="object", ctx=ast.Load()))
 
-        return n
+        return node
 
     def visit_GeneratorExp(self, node):
         return self.wrap_generator(node)
 
-    def visit_SetComp(self, n):
+    def visit_SetComp(self, node):
         return ast.Call(
             func=ast.Name(
                 id="__renpy__set__",
                 ctx=ast.Load()
-                ),
-            args=[ self.wrap_generator(n) ],
-            keywords=[ ])
+            ),
+            args=[self.wrap_generator(node)],
+            keywords=[])
 
-    def visit_Set(self, n):
+    def visit_Set(self, node):
 
         return ast.Call(
             func=ast.Name(
                 id="__renpy__set__",
                 ctx=ast.Load()
-                ),
-            args=[ self.generic_visit(n) ],
-            keywords=[ ])
+            ),
+            args=[self.generic_visit(node)],  # type: ignore
+            keywords=[])
 
-    def visit_ListComp(self, n):
+    def visit_ListComp(self, node):
 
         return ast.Call(
             func=ast.Name(
                 id="__renpy__list__",
                 ctx=ast.Load()
-                ),
-            args=[ self.wrap_generator(n) ],
-            keywords=[ ])
+            ),
+            args=[self.wrap_generator(node)],
+            keywords=[])
 
-    def visit_List(self, n):
+    def visit_List(self, node):
 
-        if not isinstance(n.ctx, ast.Load):
-            return self.generic_visit(n)
+        if not isinstance(node.ctx, ast.Load):
+            return self.generic_visit(node)
 
         return ast.Call(
             func=ast.Name(
                 id="__renpy__list__",
                 ctx=ast.Load()
-                ),
-            args=[ self.generic_visit(n) ],
-            keywords=[ ])
+            ),
+            args=[self.generic_visit(node)],  # type: ignore
+            keywords=[])
 
-    def visit_DictComp(self, n):
+    def visit_DictComp(self, node):
         return ast.Call(
             func=ast.Name(
                 id="__renpy__dict__",
                 ctx=ast.Load()
-                ),
-            args=[ self.wrap_generator(n) ],
-            keywords=[ ])
+            ),
+            args=[self.wrap_generator(node)],
+            keywords=[])
 
-    def visit_Dict(self, n):
+    def visit_Dict(self, node):
 
         return ast.Call(
             func=ast.Name(
                 id="__renpy__dict__",
                 ctx=ast.Load()
-                ),
-            args=[ self.generic_visit(n) ],
-            keywords=[ ])
+            ),
+            args=[self.generic_visit(node)],  # type: ignore
+            keywords=[])
 
-    def visit_FormattedValue(self, n):
-        n = wrap_formatted_value(n)
-        return self.generic_visit(n)
+    def visit_FormattedValue(self, node):
+        node = wrap_formatted_value(node)
+        return self.generic_visit(node)
 
-    def visit_Match(self, node : ast.Match) -> Any:
-        n : ast.Match = self.generic_visit(node) # type: ignore
-        n.cases = [ self.wrap_match_case(i) for i in n.cases ]
-        return n
-
+    def visit_Match(self, node: ast.Match):
+        node = self.generic_visit(node)   # type: ignore
+        node.cases = [self.wrap_match_case(i) for i in node.cases]
+        return node
 
 
 wrap_node = WrapNode()
@@ -997,7 +999,7 @@ def quote_eval(s):
 compile_filename = ""
 
 
-def py_compile(source, mode, filename='<none>', lineno=1, ast_node=False, cache=True, py=None):
+def py_compile(source, mode, filename='<none>', lineno=1, ast_node=False, cache=True, py=None, hashcode=None):
     """
     Compiles the given source code using the supplied codegenerator.
     Lists, List Comprehensions, and Dictionaries are wrapped when
@@ -1008,7 +1010,7 @@ def py_compile(source, mode, filename='<none>', lineno=1, ast_node=False, cache=
         node.
 
     `mode`
-        One of "exec" or "eval".
+        One of "eval", "exec", or "hide".
 
     `filename`
         The filename the source comes from. If a pyexpr is given, the
@@ -1032,18 +1034,24 @@ def py_compile(source, mode, filename='<none>', lineno=1, ast_node=False, cache=
     if isinstance(source, ast.Module):
         return compile(source, filename, mode)
 
-    if isinstance(source, renpy.ast.PyExpr):
+    elif isinstance(source, renpy.ast.PyExpr):
         filename = source.filename
         lineno = source.linenumber
+        hashcode = source.hashcode
 
         if py is None:
             py = source.py
 
+    elif hashcode is None:
+        hashcode = hash_fnv1a(source)
+
     if py is None:
         py = 3
 
+    flags = file_compiler_flags.get(filename, 0)
+
     if cache:
-        key = (lineno, filename, str(source), mode, renpy.script.MAGIC)
+        key = (hashcode, lineno, filename, mode, renpy.script.MAGIC, flags)
         warnings_key = ("warnings", key)
 
         rv = py_compile_cache.get(key, None)
@@ -1088,7 +1096,6 @@ def py_compile(source, mode, filename='<none>', lineno=1, ast_node=False, cache=
         else:
             py_mode = mode
 
-        flags = file_compiler_flags.get(filename, 0)
         flags |= new_compile_flags
 
         try:
@@ -1153,25 +1160,6 @@ def py_compile(source, mode, filename='<none>', lineno=1, ast_node=False, cache=
             e.lineno += line_offset
 
         raise e
-
-
-def py_compile_exec_bytecode(source, **kwargs):
-    code = py_compile(source, 'exec', cache=False, **kwargs)
-    return marshal.dumps(code)
-
-
-def py_compile_hide_bytecode(source, **kwargs):
-    code = py_compile(source, 'hide', cache=False, **kwargs)
-    return marshal.dumps(code)
-
-
-def py_compile_eval_bytecode(source, **kwargs):
-    source = source.strip()
-    code = py_compile(source, 'eval', cache=False, **kwargs)
-    return marshal.dumps(code)
-
-# Classes that are exported in place of the normal list, dict, and
-# object.
 
 
 

@@ -713,9 +713,7 @@ class ScreenDisplayable(renpy.display.layout.Container):
         if self.miss_cache:
             self.miss_cache.clear()
 
-        # Deal with the case where the screen version changes.
-        if (self.cache.get(NAME, None) is not old_cache) and (self.current_transform_event is None) and (self.phase == UPDATE):
-            self.current_transform_event = "update"
+        # Send a pending transform event.
 
         if self.current_transform_event:
 
@@ -728,6 +726,7 @@ class ScreenDisplayable(renpy.display.layout.Container):
             finally:
                 pop_current_screen()
 
+
             self.current_transform_event = None
 
         if profile:
@@ -739,16 +738,15 @@ class ScreenDisplayable(renpy.display.layout.Container):
             if self.profile.debug:
                 profile_log.write("\n")
 
+        if self.phase == SHOW:
+            self.phase = UPDATE
+
         return self.widgets
 
     def render(self, w, h, st, at):
 
         if not self.child:
             self.update()
-
-        if self.phase == SHOW:
-            self.phase = UPDATE
-
         try:
             push_current_screen(self)
             child = renpy.display.render.render(self.child, w, h, st, at)

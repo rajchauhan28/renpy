@@ -29,6 +29,8 @@ import renpy
 import string
 import os
 import re
+import sys
+import collections
 
 
 update_translations = "RENPY_UPDATE_TRANSLATIONS" in os.environ
@@ -300,26 +302,6 @@ def convert(value, conv, scope):
     return value
 
 
-class MultipleDict(object):
-
-    def __init__(self, *dicts):
-        self.dicts = dicts
-
-    def __getitem__(self, key):
-        for d in self.dicts:
-            if key in d:
-                return d[key]
-
-        raise NameError("Name '{}' is not defined.".format(key))
-
-    def __contains__(self, key):
-        for d in self.dicts:
-            if key in d:
-                return True
-
-        return False
-
-
 def substitute(s, scope=None, force=False, translate=True):
     """
     Performs translation and formatting on `s`, as necessary.
@@ -367,7 +349,7 @@ def substitute(s, scope=None, force=False, translate=True):
     if len(dicts) == 1:
         variables = dicts[0]
     else:
-        variables = MultipleDict(*dicts)
+        variables = collections.ChainMap(*dicts)
 
     try:
         s = interpolate(s, variables) # type: ignore
@@ -377,3 +359,15 @@ def substitute(s, scope=None, force=False, translate=True):
         raise
 
     return s, (s != old_s)
+
+
+def ___(s):
+    """
+    :undocumented: Documented directly in the .rst.
+
+    Translates a string, then performs substitutions on it.
+    """
+
+    scope = sys._getframe(1).f_locals
+
+    return substitute(s, scope)[0]

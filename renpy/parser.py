@@ -271,6 +271,12 @@ def parse_menu(stmtl, loc, arguments):
 
             say_ast = finish_say(l, l.get_location(), who, what, attributes, temporary_attributes, interact=False)
 
+            if isinstance(say_ast, list):
+                if len(say_ast) == 1:
+                    say_ast = say_ast[0]
+                else:
+                    l.error("Monologue mode cannot be used in a menu.")
+
             l.expect_eol()
             l.expect_noblock("say menuitem")
             continue
@@ -717,7 +723,8 @@ def menu_statement(l, loc):
     rv.extend(menu)
 
     for i in rv:
-        i.statement_start = rv[0]
+        if isinstance(rv, renpy.ast.Menu):
+            i.statement_start = rv[0]
 
     return rv
 
@@ -1522,6 +1529,9 @@ def finish_say(l, loc, who, what, attributes=None, temporary_attributes=None, in
             arguments = args
 
     if isinstance(what, list):
+
+        if len(what) > 1 and identifier is not None:
+            l.error("Monologue mode say statements cannot have an id clause.")
 
         rv = [ ]
 

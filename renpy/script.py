@@ -39,6 +39,7 @@ import zlib
 import sys
 
 from renpy.compat.pickle import loads, dumps
+
 import shutil
 
 # The version of the dumped script.
@@ -128,6 +129,9 @@ class Script(object):
         # A list of statements that haven't been analyzed.
         self.need_analysis = [ ]
 
+        # A list of statements that need to be compressed.
+        self.need_compress = [ ]
+
         self.record_pycode = True
 
         # Bytecode caches.
@@ -142,6 +146,8 @@ class Script(object):
 
         self.translator.chain_translates()
 
+        self.compress()
+
         self.serial = 0
 
         self.digest = hashlib.md5(renpy.version_only.encode("utf-8"))
@@ -151,8 +157,8 @@ class Script(object):
 
         self.duplicate_labels = [ ]
 
-        # A list of initcode, priority, statement pairs.
-        self.initcode = [ ]
+        # A list of (initcode priority, statement) pairs.
+        self.initcode: list[tuple[int, renpy.ast.Node]] = []
 
         # A set of (fn, dir) tuples for scripts that have already been
         # loaded.
@@ -354,6 +360,8 @@ class Script(object):
 
         self.translator.chain_translates()
 
+        self.compress()
+
         return initcode
 
     def load_module(self, name):
@@ -378,6 +386,8 @@ class Script(object):
 
         self.translator.chain_translates()
 
+        self.compress()
+
         return initcode
 
     def include_module(self, name):
@@ -385,6 +395,7 @@ class Script(object):
         Loads a module with the provided name and inserts its
         initcode into the script current initcode
         """
+
         module_initcode = self.load_module(name)
         if not module_initcode:
             return
@@ -400,7 +411,7 @@ class Script(object):
 
         # Since script initcode and module initcode are both sorted,
         # we can use heap to merge them
-        new_tail = current_tail +  module_initcode
+        new_tail = current_tail + module_initcode
         new_tail.sort(key=lambda i: i[0])
 
         self.initcode[merge_id:] = new_tail
@@ -498,7 +509,8 @@ class Script(object):
         # All of the statements found in file, regardless of nesting
         # depth.
 
-        all_stmts = [ ]
+        all_stmts: list[renpy.ast.Node] = []
+
         for i in stmts:
             i.get_children(all_stmts.append)
 
@@ -580,18 +592,16 @@ class Script(object):
             self.namemap[name] = node
 
             # Add any init nodes to self.initcode.
-            if node.get_init:
-                init = node.get_init()
-                if init:
-                    initcode.append(init)
+            if (priority := node.get_init()) is not None:
+                initcode.append((priority, node))
 
-            if node.early_execute:
-                node.early_execute()
+            node.early_execute()
 
         if self.all_stmts is not None:
             self.all_stmts.extend(all_stmts)
 
         self.need_analysis.extend(all_stmts)
+        self.need_compress.extend(all_stmts)
 
         return stmts
 
@@ -778,7 +788,12 @@ class Script(object):
                             bindata = self.read_rpyc_data(f, slot)
 
                             if bindata:
-                                data, stmts = loads(bindata)
+                                try:
+                                    data, stmts = loads(bindata)
+                                except Exception as e:
+                                    print(f"Failed to load {fn}: {e}")
+                                    raise
+
                                 break
 
                         except Exception:
@@ -982,69 +997,35 @@ class Script(object):
         # Update all of the PyCode objects in the system with the loaded
         # bytecode.
 
+        old_ei = renpy.game.exception_info
+
         for i in self.all_pycode:
 
-            key = i.get_hash() + MAGIC
+            try:
 
-            flags = renpy.python.file_compiler_flags.get(i.location[0], 0)
-            if flags:
-                if flags == __future__.division.compiler_flag:
-                    # avoid triggering a recompile
-                    key += b"_py3"
-                else:
-                    key += b"_flags" + str(flags).encode("utf-8")
+                renpy.game.exception_info = "While compiling python block starting at line %d of %s." % (i.linenumber, i.filename)
 
-            warnings_key = ("warnings", key)
+                i.bytecode = renpy.python.py_compile(i.source, i.mode, filename=i.filename, lineno=i.linenumber, py=i.py, hashcode=i.hashcode)
 
-            code = self.bytecode_oldcache.get(key, None)
+            except SyntaxError as e:
 
-            if code is None:
+                text = e.text
 
-                self.bytecode_dirty = True
+                if text is None:
+                    text = ''
 
-                old_ei = renpy.game.exception_info
-                renpy.game.exception_info = "While compiling python block starting at line %d of %s." % (i.location[1], i.location[0])
+                pem = renpy.parser.ParseError(
+                    filename=e.filename,
+                    number=e.lineno,
+                    msg=e.msg,
+                    line=text,
+                    pos=e.offset)
 
-                try:
+                renpy.parser.parse_errors.append(pem.message)
 
-                    if i.mode == 'exec':
-                        code = renpy.python.py_compile_exec_bytecode(i.source, filename=i.location[0], lineno=i.location[1], py=i.py)
-                    elif i.mode == 'hide':
-                        code = renpy.python.py_compile_hide_bytecode(i.source, filename=i.location[0], lineno=i.location[1], py=i.py)
-                    elif i.mode == 'eval':
-                        code = renpy.python.py_compile_eval_bytecode(i.source, filename=i.location[0], lineno=i.location[1], py=i.py)
-
-                except SyntaxError as e:
-
-                    text = e.text
-
-                    if text is None:
-                        text = ''
-
-                    pem = renpy.parser.ParseError(
-                        filename=e.filename,
-                        number=e.lineno,
-                        msg=e.msg,
-                        line=text,
-                        pos=e.offset)
-
-                    renpy.parser.parse_errors.append(pem.message)
-
-                    continue
+            finally:
 
                 renpy.game.exception_info = old_ei
-
-                if renpy.python.compile_warnings:
-                    self.bytecode_newcache[warnings_key] = renpy.python.compile_warnings
-                    renpy.python.compile_warnings = [ ]
-
-            else:
-
-                if warnings_key in self.bytecode_oldcache:
-                    self.bytecode_newcache[warnings_key] = self.bytecode_oldcache[warnings_key]
-
-            self.bytecode_newcache[key] = code
-            i.bytecode = marshal.loads(code) # type: ignore
 
         self.all_pycode = [ ]
 
@@ -1130,6 +1111,16 @@ class Script(object):
 
         self.need_analysis = [ ]
 
+    def compress(self):
+        """
+        Compress all statements that need to be compressed.
+        """
+
+        for i in self.need_compress:
+            i._compress()
+
+        self.need_compress = [ ]
+
     def report_duplicate_labels(self):
         if not renpy.config.developer:
             return
@@ -1141,3 +1132,8 @@ class Script(object):
 
         if renpy.parser.report_parse_errors():
             raise SystemExit(-1)
+
+
+    def __del__(self):
+        for v in self.namemap.values():
+            v._kill()

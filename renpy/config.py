@@ -886,7 +886,7 @@ loadable_callback = None
 
 # How many frames should be drawn fast each time the screen needs to be
 # updated?
-fast_redraw_frames = 4
+fast_redraw_frames = 12
 
 # The color passed to glClearColor when clearing the screen.
 gl_clear_color = "#000"
@@ -983,7 +983,7 @@ menu_include_disabled = False
 # Should we report extraneous attributes?
 report_extraneous_attributes = True
 
-# Should we play non-loooped music when skipping?
+# Should we avoid playing non-loooped music when skipping?
 skip_sounds = False
 
 # Should we lint screens without parameters?
@@ -1503,8 +1503,20 @@ interface_layer = "screens"
 # Should Transform crop be limited to the width and height of the image being cropped?
 limit_transform_crop = False
 
+# Should as dissolve shrink to the size of the smallest child?
+dissolve_shrink = False
+
 # Marking labels, images and audio in replays as seen is not allowed.
 no_replay_seen = False
+
+# Should we use pre-8.4 show expression behavior?
+old_show_expression = False
+
+# Callbacks that give the translation system more strings to translate.
+translate_additional_strings_callbacks = [ ]
+
+# Should Ren'Py keep and existing screenshot when entering a menu.
+keep_screenshot_entering_menu = False
 
 
 del os

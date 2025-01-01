@@ -769,7 +769,7 @@ Media (Music, Sound, and Video)
 
 .. var:: config.skip_sounds = False
 
-    If False, non-looping audio will not be played when Ren'Py is
+    If True, non-looping audio will not be played when Ren'Py is
     skipping.
 
 .. var:: config.sound = True
@@ -1126,6 +1126,12 @@ Saving and Loading
 
     If true, the game will autosave. If false, no autosaving will
     occur.
+
+.. var:: config.keep_screenshot_entering_menu = False
+
+    If true, a screenshot taken with :class:`FileTakeScreenshot` will be kept
+    when entering the game menu. When false, a new screenshot will be taken
+    just before menu entry.
 
 .. var:: config.load_failed_label = None
 
@@ -1938,6 +1944,17 @@ Translation
 
     A list of named stores that are cleaned to their state at the end of
     the init phase when the translation language changes.
+
+.. var:: config.translate_additional_strings_callbacks = [ ]
+
+    A list of callbacks that are called when the translation system is searching for
+    strings. Each callback is expected to be return and iterable or iterator of
+    (filename, linenumber, string) tuples. The strings will then be treated as
+    additional strings to translate.
+
+    The line number doesn't need to correspond to an actual line in the file, but is used to control
+    the order in which string translations are added to transdlation files.
+
 
 .. var:: config.translate_ignore_who = [ ]
 

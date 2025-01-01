@@ -12,6 +12,76 @@ features.
 Incompatible changes to the GUI are documented at :ref:`gui-changes`, as
 such changes only take effect when the GUI is regenerated.
 
+.. _incompatible-8.4.0:
+
+8.4.0
+-----
+
+**Show expression.** The ``show expression`` statement has been changed so that::
+
+    show expression "bg washington"
+
+is exactly equivalent to:
+
+    show bg washington
+
+Previously, this would use the expression itself as the tag. When the expression is not a string,
+a unique tag is created for the show expression statement. This change can be reverted with::
+
+    define config.old_show_expression = True
+
+
+.. _incompatible-8.3.4:
+.. _incompatible-7.8.4:
+
+
+8.3.4 / 7.8.4
+-------------
+
+**Dissolving Different-Sized Displayables, part two.** When ImageDissolving or AlphaDissolving between
+displayables of different sizes, Ren'Py will give the result the size of the largest displayable, in
+each access. To revert to the pre-8.1.2 behavior (the smallest size on each axis), add to your game::
+
+    define config.dissolve_shrinks = True
+
+
+
+.. _incompatible-8.3.4:
+.. _incompatible-7.8.4:
+
+
+8.3.4 / 7.8.4
+-------------
+
+**Dissolving Different-Sized Displayables, part two.** When ImageDissolving or AlphaDissolving between
+displayables of different sizes, Ren'Py will give the result the size of the largest displayable, in
+each access. To revert to the pre-8.1.2 behavior (the smallest size on each axis), add to your game::
+
+    define config.dissolve_shrinks = True
+
+**Removal of the ATL 'update' event.** Previous versions of Ren'Py could deliver and "update" event to ATL
+inside screens when the screen was changed in major ways, such as when changing translations. This event
+was not delivered reliably, and is unlikely to have been used, so it has been removed.
+
+
+.. _incompatible-8.3.4:
+.. _incompatible-7.8.4:
+
+
+8.3.4 / 7.8.4
+-------------
+
+**Dissolving Different-Sized Displayables, part two.** When ImageDissolving or AlphaDissolving between
+displayables of different sizes, Ren'Py will give the result the size of the largest displayable, in
+each access. To revert to the pre-8.1.2 behavior (the smallest size on each axis), add to your game::
+
+    define config.dissolve_shrinks = True
+
+**Removal of the ATL 'update' event.** Previous versions of Ren'Py could deliver and "update" event to ATL
+inside screens when the screen was changed in major ways, such as when changing translations. This event
+was not delivered reliably, and is unlikely to have been used, so it has been removed.
+
+
 .. _incompatible-8.3.0:
 .. _incompatible-7.8.0:
 
@@ -309,6 +379,21 @@ disappear. Now, the event will be allowed to run to completion.
 To disable this, add to your game::
 
     define config.screens_never_cancel_hide = False
+
+
+.. _incompatible-8.1.2:
+.. _incompatible-7.6.2:
+
+8.1.2 / 7.6.2
+-------------
+
+**Dissolving Different-Sized Displayables** When dissolving between two displayables
+of different sizes, Ren'Py will give the result the size of the largest displayable, in
+each access. To revert to the previous behavior (the smallest size on each axis), add to your game::
+
+    define config.dissolve_shrinks = True
+
+
 
 
 .. _incompatible-8.1.1:

@@ -365,9 +365,12 @@ class Channel(object):
         ExecutionContext to point to the copy, and returns the copy.
         """
 
-        mcd = renpy.game.context().music
+        context = renpy.game.context()
+        mcd = dict(context.music)
+        context.music = mcd
 
         ctx = self.get_context().copy()
+
         mcd[self.name] = ctx
         return ctx
 
@@ -911,16 +914,19 @@ def register_channel(name,
         Ren'Py will display frames late rather than dropping them.
 
     `synchro_start`
-        Does this channel particpate in synchro start? Synchro start determines if
+        Does this channel participate in synchro start? Synchro start determines if
         the channel will start playing at the same time as other channels. If None,
-        this defaults to `loop`.
+        this defaults to `loop` if `movie` is False, and False otherwise.
     """
-
-    if synchro_start is None:
-        synchro_start = loop
 
     if name == "movie":
         movie = True
+
+    if synchro_start is None:
+        if movie:
+            synchro_start = False
+        else:
+            synchro_start = loop
 
     if not force and not renpy.game.context().init_phase and (" " not in name):
         raise Exception("Can't register channel outside of init phase.")
@@ -1282,7 +1288,7 @@ def interact():
                     c.fadeout(max(renpy.config.context_fadeout_music, renpy.config.fadeout_audio))
 
                 if filenames:
-                    c.enqueue(filenames, loop=True, synchro_start=True, tight=tight, fadein=renpy.config.context_fadein_music, relative_volume=ctx.last_relative_volume)
+                    c.enqueue(filenames, loop=True, synchro_start=c.default_synchro_start, tight=tight, fadein=renpy.config.context_fadein_music, relative_volume=ctx.last_relative_volume)
 
                 c.last_changed = ctx.last_changed
 

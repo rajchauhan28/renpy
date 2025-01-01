@@ -395,8 +395,9 @@ def import_all():
 
     import renpy.debug
 
-    # Should probably be early, as we will add it as a base to serialized things.
+    # Should probably be early, as we will add these as a base to serialized things.
     import renpy.object
+    import renpy.location
 
     import renpy.game
     import renpy.preferences
@@ -408,7 +409,6 @@ def import_all():
     sys.modules["renpy.py3analysis"] = renpy.pyanalysis
 
     import renpy.parameter
-
     import renpy.ast
     import renpy.atl
     import renpy.curry
@@ -425,6 +425,7 @@ def import_all():
     import renpy.parser
     import renpy.performance
     import renpy.pydict
+    import renpy.pythonsupport
     import renpy.revertable
     import renpy.rollback
     import renpy.python
@@ -705,6 +706,7 @@ if 1 == 0:
     from . import lexer
     from . import lexersupport
     from . import lint
+    from . import location
     from . import loader
     from . import loadsave
     from . import log
@@ -719,6 +721,7 @@ if 1 == 0:
     from . import preferences
     from . import pyanalysis
     from . import pydict
+    from . import pythonsupport
     from . import python
     from . import revertable
     from . import rollback

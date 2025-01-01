@@ -457,6 +457,13 @@ data. It takes the following properties:
     An action to run when the bar button is released. This will be invoked
     even if the bar has not changed its value.
 
+.. screen-property:: thumb_align
+
+    The alignment of the bar thumb, relative to the bar. If the bar and
+    thumb are different sizes - for example, the thumb is taller than the
+    height of a horizontal bar - thumb_align can be set to 0.5 so the centers
+    of the bar and thumb are aligned.
+
 One of `value` or `adjustment` must be given. In addition, this
 function takes:
 
@@ -929,6 +936,11 @@ The input statement takes no parameters, and the following properties:
     Generally, this is is used with a `value` that stores the input into
     a variable, so the action can access it.
 
+.. screen-property:: arrowkeys
+
+    If True (the default), the arrow keys can be used to move the caret left and right
+    within the input. If False, arrow keys are ignored, making them available for other uses,
+    like changing focus.
 
 
 It also takes:

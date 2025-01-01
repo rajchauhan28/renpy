@@ -293,6 +293,7 @@ init -1100 python:
         if _compat_versions(version, (7, 6, 1), (8, 1, 1)):
             config.tts_front_to_back = False
             _greedy_rollback = False
+            config.dissolve_shrinks = True
 
         if _compat_versions(version, (7, 6, 99), (8, 1, 99)):
             config.simple_box_reverse = True
@@ -322,6 +323,9 @@ init -1100 python:
             if not _compat_versions(version, (7, 6, 99), (8, 1, 99)):
                 config.box_reverse_align = True
                 config.limit_transform_crop = True
+
+        if version <= (8, 3, 99):
+            config.old_show_expression = True
 
 
     # The version of Ren'Py this script is intended for, or

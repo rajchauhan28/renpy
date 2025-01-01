@@ -1215,8 +1215,11 @@ cdef class GL2Draw:
         cdef unsigned char *rpp
         cdef int x, y, pitch
 
-        sw = render_tree.width * self.draw_per_virt
-        sh = render_tree.height * self.draw_per_virt
+        if render_tree is not None:
+            sw = render_tree.width * self.draw_per_virt
+            sh = render_tree.height * self.draw_per_virt
+        else:
+            sw, sh = self.drawable_size
 
         full = renpy.display.pgrender.surface_unscaled((sw, sh), True)
         surf = PySurface_AsSurface(full)
@@ -1355,6 +1358,9 @@ cdef class GL2DrawingContext:
         halfheight = self.height / 2.0
 
         sx, sy = transform.transform(0, 0)
+
+        sx = round(sx, 5)
+        sy = round(sy, 5)
 
         sx = sx * halfwidth + halfwidth
         sy = sy * halfheight + halfheight

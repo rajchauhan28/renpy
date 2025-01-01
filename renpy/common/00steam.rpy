@@ -424,7 +424,7 @@ init -1499 python in _renpysteam:
         return get_csteam_id() & 0xffffffff
 
 
-    def get_session_ticket():
+    def get_session_ticket(identity=None):
         """
         :doc: steam_user
 
@@ -442,7 +442,8 @@ init -1499 python in _renpysteam:
         ticket_buf = create_string_buffer(2048)
         ticket_len = c_uint()
 
-        h_ticket = steamapi.SteamUser().GetAuthSessionTicket(ticket_buf, 2048, byref(ticket_len))
+        identity = identity or steamapi.SteamNetworkingIdentity()
+        h_ticket = steamapi.SteamUser().GetAuthSessionTicket(ticket_buf, 2048, byref(ticket_len), identity)
 
         if h_ticket:
             ticket = ticket_buf.raw[0:ticket_len.value]
@@ -720,15 +721,17 @@ init -1499 python in _renpysteam:
 
     def keyboard_periodic():
 
+        global keyboard_mode
         global keyboard_showing
         global keyboard_primed
         global keyboard_shift
         global keyboard_baseline
 
+        if keyboard_mode == "always":
+            keyboard_mode = "once"
+
         if keyboard_mode == "never":
             return
-        elif keyboard_mode == "always":
-            keyboard_primed = True
         elif keyboard_mode != "once":
             raise Exception("Bad steam keyboard_mode.")
 

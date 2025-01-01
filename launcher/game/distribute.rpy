@@ -1093,12 +1093,14 @@ fix_dlc("renios", "renios")
 
             prefix = py("lib/py{major}-")
 
-            if os.path.exists(linux_i686):
+            i686fn = os.path.join(config.renpy_base, prefix + "linux-i686/renpy")
+
+            if os.path.exists(i686fn):
 
                 self.add_file(
                     linux_i686,
                     prefix + "linux-i686/" + self.executable_name,
-                    os.path.join(config.renpy_base, prefix + "linux-i686/renpy"),
+                    i686fn,
                     True)
 
             self.add_file(
@@ -1106,16 +1108,6 @@ fix_dlc("renios", "renios")
                 prefix + "linux-x86_64/" + self.executable_name,
                 os.path.join(config.renpy_base, prefix + "linux-x86_64/renpy"),
                 True)
-
-            armfn = os.path.join(config.renpy_base, prefix + "linux-armv7l/renpy")
-
-            if os.path.exists(armfn):
-
-                self.add_file(
-                    raspi,
-                    prefix + "linux-armv7l/" + self.executable_name,
-                    armfn,
-                    True)
 
             aarch64fn = os.path.join(config.renpy_base, prefix + "linux-aarch64/renpy")
 
